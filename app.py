@@ -80,9 +80,15 @@ with DB() as d:
     pw=os.getenv("ADMIN_PASSWORD","")
     existing=d.scalar(select(User).where(User.email==email)) if email else None
     if existing and not existing.admin: raise RuntimeError("Admin email already registered as customer")
-    if email and pw and not existing:
-        if len(pw)<12: raise RuntimeError("Admin password too short")
-        d.add(User(name="SABER ACTROS DZ",email=email,password_hash=generate_password_hash(pw),admin=True))
+    if email and pw:
+        if len(pw)<8: raise RuntimeError("Admin password too short")
+        if existing:
+            # Keep the admin login synchronized with the secret stored in Render.
+            # Changing ADMIN_PASSWORD only updates the intended admin account.
+            if not check_password_hash(existing.password_hash,pw):
+                existing.password_hash=generate_password_hash(pw)
+        else:
+            d.add(User(name="SABER ACTROS DZ",email=email,password_hash=generate_password_hash(pw),admin=True))
     d.commit()
 @app.teardown_appcontext
 def close(error=None):
