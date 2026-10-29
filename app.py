@@ -127,7 +127,7 @@ CSS="""<style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b1220;color:#edf4ff;font:16px system-ui,Arial;line-height:1.8}
 a{color:#6bdbf0;text-decoration:none}nav{display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:17px max(20px,5%);background:#121f32;border-bottom:1px solid #29405a}
 nav strong{color:#ffcb55;font-size:21px}.links{display:flex;gap:16px;flex-wrap:wrap}.container{width:min(1100px,94%);margin:auto}
-.hero{padding:65px 0 42px;text-align:center;background:linear-gradient(145deg,#142a42,#0b1220)}h1{font-size:clamp(30px,5vw,52px);margin:8px}h2{color:#f8c75b}.muted{color:#a7bacd}
+.hero{padding:90px 0 78px;text-align:center;background:linear-gradient(145deg,#142a42,#0b1220);background-size:cover;background-position:center 55%;min-height:440px;display:flex;align-items:center;justify-content:center}.hero .container{position:relative;text-shadow:0 2px 15px #000b}.hero .button{text-shadow:none}h1{font-size:clamp(30px,5vw,52px);margin:8px}h2{color:#f8c75b}.muted{color:#a7bacd}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin:24px 0}
 .card{padding:22px;background:#142237;border:1px solid #2b445e;border-radius:16px;box-shadow:0 4px 18px #0002}
 .button,button{display:inline-block;padding:10px 19px;background:#e6b44a;color:#121a28;font-weight:bold;border:0;border-radius:9px;cursor:pointer}
@@ -147,7 +147,8 @@ def page(body,title="SABER ACTROS DZ",**context):
 def home():
     products=DB().scalars(select(Product).where(Product.visible==True)).all()
     photo_ids={p.product_id:p.id for p in DB().scalars(select(Photo).where(Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.asc())).all()}
-    return page("""<header class="hero"><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><a class="button" href="#products">استعرض البرامج</a></div></header>
+    hero_id=DB().scalar(select(Photo.id).where(Photo.kind=="hero",Photo.status=="approved").order_by(Photo.id.desc()))
+    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><a class="button" href="#products">استعرض البرامج</a></div></header>
 <div class="container"><section id="products"><h2>البرامج والخدمات</h2><div class="grid">{% for p in products %}
 <div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a></div>
 {% endfor %}</div></section>
@@ -155,7 +156,7 @@ def home():
 <a class="button" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener">واتساب +966 56 440 4359</a><p>البريد: <a href="mailto:{{contact_email}}">{{contact_email}}</a></p>
 <h3>أرسل استفسارك</h3><form method="post" action="/contact"><input type="hidden" name="csrf" value="{{csrf}}">
 <label>الاسم<input name="name" maxlength="120" required></label><label>البريد الإلكتروني<input name="email" type="email" required></label><label>الرسالة<textarea name="message" maxlength="2000" required></textarea></label>
-<label><input type="checkbox" name="consent" required>أوافق على إرسال بريدي وبياناتي لغرض الرد، وفق <a href="/privacy">سياسة الخصوصية</a>.</label><button>إرسال</button></form></section></div>""",products=products,photo_ids=photo_ids)
+<label><input type="checkbox" name="consent" required>أوافق على إرسال بريدي وبياناتي لغرض الرد، وفق <a href="/privacy">سياسة الخصوصية</a>.</label><button>إرسال</button></form></section></div>""",products=products,photo_ids=photo_ids,hero_id=hero_id)
 @app.post("/contact")
 def contact():
     e=field("email",254).lower()
