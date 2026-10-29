@@ -21,7 +21,9 @@ engine=create_engine(url,pool_pre_ping=True,connect_args={"check_same_thread":Fa
 DB=scoped_session(sessionmaker(bind=engine))
 Base=declarative_base()
 from photos import register_photo_model, setup_photo_routes
+from catalog import register_catalog_models, setup_catalog_routes
 Photo=register_photo_model(Base)
+CatalogMeta, CatalogDocument=register_catalog_models(Base)
 class User(Base):
     __tablename__="users"
     id=Column(Integer,primary_key=True)
@@ -134,14 +136,28 @@ nav strong{color:#ffcb55;font-size:21px}.links{display:flex;gap:16px;flex-wrap:w
 input,textarea,select{width:100%;padding:12px;margin:8px 0 16px;color:#eff7fd;background:#0b1929;border:1px solid #47647a;border-radius:9px}
 label{display:block}input[type=checkbox]{width:auto;margin-left:8px}section{margin:40px 0}
 small{color:#a7bacd}footer{text-align:center;padding:25px;margin-top:60px;background:#121f32}table{width:100%;border-collapse:collapse;min-width:650px}td,th{padding:9px;border-bottom:1px solid #355068;text-align:right}.scroll{overflow-x:auto}
+.catalog-hero-link{display:inline-block;margin-inline:12px;color:#f6d380;font-weight:700;text-decoration:underline}
+.catalog-intro{background:#15273d;border:1px solid #304967;border-radius:16px;padding:24px;margin-top:35px}
+.catalog-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;align-items:end}
+.catalog-filters input,.catalog-filters select{margin:6px 0 0}
+.catalog-reset{padding:9px 0;color:#8addec}
+.catalog-card h3 a{color:#fff}
+.catalog-card h3 a:hover{color:#e7bf65}
+.catalog-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:14px}
+.catalog-actions .button{font-size:.88rem;padding:8px 12px}
+.catalog-actions .copy-link{margin:0}
+.catalog-no-photo{height:170px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#263d57,#10283f);font-weight:800;letter-spacing:.06em;border-radius:12px;margin-bottom:10px;color:#e9ba58}
+.catalog-detail{max-width:850px;margin:32px auto}
+.catalog-detail-image{display:block;width:100%;max-height:370px;object-fit:contain;background:#0d1725;border-radius:11px;margin:14px auto}
+.catalog-specs{white-space:pre-wrap}
 .product-image{width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:10px}.gallery-image{width:100%;height:220px;object-fit:cover;border-radius:12px}.photo-actions{display:flex;gap:10px;flex-wrap:wrap}
 .copy-link{background:#24394e;color:#eaf3fa;border:1px solid #4b6279;font-size:.86rem;padding:7px 12px;margin-inline-start:8px;font-weight:500}
 .copy-link:hover{background:#314e6b}
 </style>"""
 def page(body,title="SABER ACTROS DZ",**context):
     template="""<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{title}}</title>"""+CSS+"""</head><body>
-<nav><strong>SABER ACTROS DZ</strong><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
-{% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a><a href="/register">حساب جديد</a>{% endif %}</div></nav>
+<nav><strong>SABER ACTROS DZ</strong><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/catalog">الكتالوج</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
+{% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/catalog">إدارة الكتالوج</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a><a href="/register">حساب جديد</a>{% endif %}</div></nav>
 {% with messages=get_flashed_messages() %}{% if messages %}<div class="container"><p>{{messages|join(' • ')}}</p></div>{% endif %}{% endwith %}
 """+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a> · <button type="button" class="copy-link" data-path="/" onclick="copyStoreLink(this)">نسخ رابط المتجر</button></footer><script>
 async function copyStoreLink(el){
@@ -170,7 +186,7 @@ def home():
     products=DB().scalars(select(Product).where(Product.visible==True)).all()
     photo_ids={p.product_id:p.id for p in DB().scalars(select(Photo).where(Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.asc())).all()}
     hero_id=DB().scalar(select(Photo.id).where(Photo.kind=="hero",Photo.status=="approved").order_by(Photo.id.desc()))
-    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><a class="button" href="#products">استعرض البرامج</a></div></header>
+    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><a class="button" href="#products">استعرض البرامج</a> <a class="catalog-hero-link" href="/catalog">فتح كتالوج البرامج وقطع الغيار</a></div></header>
 <div class="container"><section id="products"><h2>البرامج والخدمات</h2><div class="grid">{% for p in products %}
 <div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a><button type="button" class="copy-link" data-path="/order/{{p.slug}}" onclick="copyStoreLink(this)">نسخ الرابط</button></div>
 {% endfor %}</div></section>
@@ -254,7 +270,7 @@ def admin():
 <tr><td>{{o.reference}}</td><td>{{o.name}}</td><td>{{o.email}}</td><td>{{p.title}}</td><td>{{o.contact}} {{o.notes}}</td><td><form method="post" action="/admin/order/{{o.id}}"><input type="hidden" name="csrf" value="{{csrf}}"><select name="status">{% for s in statuses %}<option value="{{s}}" {% if o.status==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select><button>حفظ</button></form></td></tr>{% endfor %}</table></div></section>
 <section><h2>رسائل العملاء (بموافقتهم)</h2><div class="grid">{% for i in inquiries %}<div class="card"><b>{{i.name}}</b> · {{i.email}}<p>{{i.message}}</p></div>{% endfor %}</div></section>
 <section><h2>العملاء المسجلون</h2><div class="grid">{% for c in customers %}<div class="card">{{c.name}} · {{c.email}}</div>{% endfor %}</div></section>
-<section><h2>إضافة منتج أو خدمة</h2><form method="post" action="/admin/product" class="card"><input type="hidden" name="csrf" value="{{csrf}}"><label>الاسم<input name="title" required></label><label>العلامة<input name="brand" required></label><label>الوصف<textarea name="description" required></textarea></label><button>إضافة</button></form>
+<section><h2>إدارة الكتالوج</h2><p class="muted">تصنيف البرامج والشركات، البحث والمواصفات، ورفع كتالوجات PDF.</p><p><a class="button" href="/admin/catalog">فتح لوحة إدارة الكتالوج</a></p></section><section><h2>إضافة منتج أو خدمة</h2><form method="post" action="/admin/product" class="card"><input type="hidden" name="csrf" value="{{csrf}}"><label>الاسم<input name="title" required></label><label>العلامة<input name="brand" required></label><label>الوصف<textarea name="description" required></textarea></label><button>إضافة</button></form>
 {% for p in products %}<div class="card">{{p.title}} · {{'معروض' if p.visible else 'مخفي'}}<form method="post" action="/admin/product/{{p.id}}/toggle"><input type="hidden" name="csrf" value="{{csrf}}"><button>إظهار/إخفاء</button></form></div>{% endfor %}</section></div>""",views=views,uniques=uniques,orders=orders,inquiries=inquiries,customers=customers,products=products,statuses=["awaiting_contact","awaiting_payment","paid","delivered","rejected"])
 @app.post("/admin/order/<int:id>")
 @admin_only
@@ -284,4 +300,5 @@ def health():return "ok",200
 @app.get("/robots.txt")
 def robots():return "User-agent: *\nDisallow: /admin\nDisallow: /my-orders\nDisallow: /login\n",200,{"Content-Type":"text/plain"}
 setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, User)
+setup_catalog_routes(app, CatalogMeta, CatalogDocument, DB, Product, Photo, user, page, field, admin_only)
 if __name__=="__main__":app.run(port=int(os.getenv("PORT","5000")))
