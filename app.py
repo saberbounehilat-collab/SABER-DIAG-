@@ -153,15 +153,31 @@ small{color:#a7bacd}footer{text-align:center;padding:25px;margin-top:60px;backgr
 .product-image{width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:10px}.gallery-image{width:100%;height:220px;object-fit:cover;border-radius:12px}.photo-actions{display:flex;gap:10px;flex-wrap:wrap}
 .copy-link{background:#24394e;color:#eaf3fa;border:1px solid #4b6279;font-size:.86rem;padding:7px 12px;margin-inline-start:8px;font-weight:500}
 .copy-link:hover{background:#314e6b}
+
+.install-app-button{background:#168252!important;color:#fff!important;border:1px solid #62cd91!important}
+.install-app-button:hover,.install-app-button:focus-visible{background:#1ba462!important}
+.hero-actions .install-app-button{min-width:162px}
+.install-footer{padding:8px 14px;border-radius:9px;cursor:pointer;margin:4px}
+.install-help{font-size:.87rem;line-height:1.65;color:#d8e7f3;background:#1a3447;border:1px solid #43627b;border-radius:10px;padding:10px 12px;max-width:400px;margin:9px auto;text-align:right}
+html.store-installed .install-app-button{display:none!important}
+@media(max-width:620px){.hero-actions{gap:9px}.hero-actions .install-app-button{min-width:145px}}
 </style>"""
 def page(body,title="SABER ACTROS DZ",**context):
-    template="""<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{title}}</title>"""+CSS+"""</head><body>
+    template="""<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{title}}</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/icons/icon-180.png">
+<meta name="theme-color" content="#121f32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SABER ACTROS DZ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+"""+CSS+"""</head><body>
 <nav><div class="brand-lockup"><div class="brand-title-line"><img class="algeria-flag" src="/static/flag-dz.svg" width="32" height="21" alt="علم الجزائر"><strong>SABER ACTROS DZ</strong><a class="wa-inquiry" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener noreferrer" aria-label="واتساب للاستفسار 24/24">
 <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M26.4 15.1a10.7 10.7 0 0 1-15.9 9.3L5.1 26l1.5-5.2A10.7 10.7 0 1 1 26.4 15.1Z" fill="none" stroke="white" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10.4c-.6-.3-1.5.5-1.7 1.5-.5 2.2 1.5 5 3.9 7 2.4 2 5.1 3 6.5 2.3.8-.4 1.7-1.4 1.6-2.2 0-.5-2.4-1.5-2.8-1.3l-1.2 1.4c-1.3.6-4.6-2.3-4.8-3.8l1.1-1.3c.2-.4-.9-2.9-1.7-3.2Z" fill="white"/></svg>
 <span class="wa-inquiry-text"><span>واتساب للاستفسار</span><span class="wa-inquiry-hours">24/24</span></span></a></div><span class="brand-caption">أبو يزن · <bdi dir="ltr">00966564404359</bdi></span></div><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/catalog">كتالوج</a><a href="/catalog/pdfs">كتالوجات PDF</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
 {% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/catalog">إدارة الكتالوج</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a>{% endif %}</div></nav>
 {% with messages=get_flashed_messages() %}{% if messages %}<div class="container"><p>{{messages|join(' • ')}}</p></div>{% endif %}{% endwith %}
-"""+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a> · <button type="button" class="copy-link" data-path="/" onclick="copyStoreLink(this)">نسخ رابط المتجر</button></footer><script>
+"""+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a> · <button type="button" class="copy-link" data-path="/" onclick="copyStoreLink(this)">نسخ رابط المتجر</button> · <button type="button" class="install-app-button install-footer" onclick="installStoreApp(this)">📲 تثبيت المتجر على الهاتف</button></footer><script>
 async function copyStoreLink(el){
   const url = new URL(el.dataset.path || "/", window.location.origin).href;
   try {
@@ -181,14 +197,14 @@ async function copyStoreLink(el){
     window.prompt("انسخ الرابط:",url);
   }
 }
-</script></body></html>"""
+</script><script src="/static/install.js" defer></script></body></html>"""
     return render_template_string(template,title=title,me=user(),csrf=token(),contact_email=os.getenv("PUBLIC_CONTACT_EMAIL","saberbounehilat@gmail.com"),whatsapp=os.getenv("PUBLIC_WHATSAPP","966564404359"),**context)
 @app.get("/")
 def home():
     products=DB().scalars(select(Product).where(Product.visible==True)).all()
     photo_ids={p.product_id:p.id for p in DB().scalars(select(Photo).where(Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.asc())).all()}
     hero_id=DB().scalar(select(Photo.id).where(Photo.kind=="hero",Photo.status=="approved").order_by(Photo.id.desc()))
-    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><div class="hero-actions"><a class="button" href="#products">استعرض البرامج</a><a class="button" href="/catalog">كتالوج</a></div></div></header>
+    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><div class="hero-actions"><a class="button" href="#products">استعرض البرامج</a><a class="button" href="/catalog">كتالوج</a><button class="button install-app-button" type="button" onclick="installStoreApp(this)">📲 تثبيت المتجر</button></div></div></header>
 <div class="container"><section id="products"><h2>البرامج والخدمات</h2><div class="grid">{% for p in products %}
 <div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a><button type="button" class="copy-link" data-path="/order/{{p.slug}}" onclick="copyStoreLink(this)">نسخ الرابط</button></div>
 {% endfor %}</div></section>
@@ -287,6 +303,21 @@ def privacy():
     return page("""<div class="container"><section class="card"><h1>سياسة الخصوصية</h1><p>نستخدم ملف تعريف جلسة آمن لعدّ الزيارات بصورة تقريبية دون معرفة البريد الإلكتروني للزائر تلقائياً.</p><p>نجمع الاسم والبريد الإلكتروني اللذين يقدمهما العميل بموافقته عند الطلب أو التواصل، ونستخدمهما لخدمة العميل وإدارة طلباته.</p><p>يمكنك مراسلتنا لطلب تصحيح أو حذف بياناتك عبر {{contact_email}}. لا تُعرض معلوماتك لزوار الموقع. صور الأعضاء لا تظهر للعامة إلا بعد موافقتهم على النشر ومراجعة الإدارة، وتُزال منها بيانات الصور الوصفية أثناء المعالجة.</p></section></div>""")
 @app.get("/health")
 def health():return "ok",200
+@app.get("/manifest.webmanifest")
+def store_manifest():
+    response=app.send_static_file("manifest.webmanifest")
+    response.mimetype="application/manifest+json"
+    response.headers["Cache-Control"]="public, max-age=3600"
+    return response
+
+@app.get("/service-worker.js")
+def store_service_worker():
+    response=app.send_static_file("sw.js")
+    response.mimetype="application/javascript"
+    response.headers["Service-Worker-Allowed"]="/"
+    response.headers["Cache-Control"]="no-cache, no-store, must-revalidate"
+    return response
+
 @app.get("/robots.txt")
 def robots():return "User-agent: *\nDisallow: /admin\nDisallow: /my-orders\nDisallow: /login\n",200,{"Content-Type":"text/plain"}
 setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, User)
