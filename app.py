@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, Da
 from sqlalchemy.orm import declarative_base, scoped_session, sessionmaker
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
+from social import share_links, SITE_URL
 
 app=Flask(__name__)
 secret=os.getenv("SECRET_KEY")
@@ -135,14 +136,101 @@ input,textarea,select{width:100%;padding:12px;margin:8px 0 16px;color:#eff7fd;ba
 label{display:block}input[type=checkbox]{width:auto;margin-left:8px}section{margin:40px 0}
 small{color:#a7bacd}footer{text-align:center;padding:25px;margin-top:60px;background:#121f32}table{width:100%;border-collapse:collapse;min-width:650px}td,th{padding:9px;border-bottom:1px solid #355068;text-align:right}.scroll{overflow-x:auto}
 .product-image{width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:10px}.gallery-image{width:100%;height:220px;object-fit:cover;border-radius:12px}.photo-actions{display:flex;gap:10px;flex-wrap:wrap}
+
+/* Social sharing is native on supported phones and available by direct links everywhere. */
+.sharebox{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px}
+.sharebox button,.sharebox a,.sharebox summary{font:inherit;font-weight:600;border:1px solid #46627b;border-radius:9px;padding:7px 11px;cursor:pointer}
+.sharebox button,.sharebox summary{background:#243c59;color:#eefaff}
+.sharebox .share-native{background:#d6ab4a;color:#101826;border-color:#d6ab4a}
+.sharebox .share-platforms{width:100%;margin-top:6px}
+.sharebox .share-platforms summary{display:inline-block;list-style:none;user-select:none}
+.sharebox .share-platforms summary::-webkit-details-marker{display:none}
+.sharebox .platform-list{display:flex;flex-wrap:wrap;gap:8px;padding:12px 0 3px}
+.sharebox .platform-list a{background:#102337;color:#c5e5ff;text-decoration:none}
+.sharebox .platform-list a:hover{background:#26507a}
+.share-status{font-size:.85rem;color:#a6efc1}
+.product-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.product-controls .button{white-space:nowrap}
+.product-detail{max-width:920px;margin:30px auto}
+.product-detail .product-image{height:auto;max-height:390px;object-fit:contain;background:#0b1220}
+.admin-photo-form{margin-top:12px;padding:14px;background:#0c1b2e;border:1px solid #314b65;border-radius:10px}
+.admin-photo-form input[type=file]{margin:8px 0}
+.admin-photo-form button{margin-top:5px}
+.admin-product-image{max-width:210px;width:100%;max-height:120px;object-fit:contain;border-radius:9px;float:left}
+@media(max-width:620px){.admin-product-image{float:none;display:block;margin:10px 0}}
 </style>"""
+
+SOCIAL_MACRO = """{% macro sharing(links) -%}
+<div class="sharebox" aria-label="مشاركة الرابط">
+<button class="share-native" type="button" data-share-url="{{links.url}}" data-share-title="{{links.title}}" onclick="shareItem(this)">↗ مشاركة عبر التطبيقات</button>
+<button class="share-copy" type="button" data-share-url="{{links.url}}" onclick="copyShareLink(this)">⧉ نسخ الرابط</button>
+<details class="share-platforms"><summary>المشاركة على منصات التواصل</summary>
+<div class="platform-list">
+<a href="{{links.whatsapp}}" target="_blank" rel="noopener noreferrer nofollow">واتساب</a>
+<a href="{{links.facebook}}" target="_blank" rel="noopener noreferrer nofollow">فيسبوك</a>
+<a href="{{links.telegram}}" target="_blank" rel="noopener noreferrer nofollow">تليغرام</a>
+<a href="{{links.x}}" target="_blank" rel="noopener noreferrer nofollow">X (تويتر)</a>
+<a href="{{links.linkedin}}" target="_blank" rel="noopener noreferrer nofollow">لينكدإن</a>
+<a href="{{links.reddit}}" target="_blank" rel="noopener noreferrer nofollow">Reddit</a>
+{% if links.pinterest %}<a href="{{links.pinterest}}" target="_blank" rel="noopener noreferrer nofollow">Pinterest</a>{% endif %}
+<a href="{{links.email}}">البريد الإلكتروني</a>
+</div><small>يمكنك مشاركة الرابط في إنستغرام وتيك توك وسناب شات عبر زر المشاركة أو نسخ الرابط.</small>
+</details>
+</div>
+{%- endmacro %}"""
+SOCIAL_JS = """<script>
+async function copyShareLink(button){
+ const url=button.dataset.shareUrl;
+ try {
+   if(navigator.clipboard && window.isSecureContext) {
+     await navigator.clipboard.writeText(url);
+   } else {
+     const field=document.createElement('textarea');
+     field.value=url;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';
+     document.body.appendChild(field);field.select();
+     const ok=document.execCommand('copy');field.remove();
+     if(!ok)throw new Error('copy');
+   }
+   const old=button.textContent;button.textContent='✓ تم نسخ الرابط';
+   setTimeout(()=>{button.textContent=old},2300);
+ } catch(error){window.prompt('انسخ الرابط:',url)}
+}
+async function shareItem(button){
+ const url=button.dataset.shareUrl,title=button.dataset.shareTitle;
+ if(navigator.share){
+   try {await navigator.share({title:title,text:title,url:url});return}
+   catch(error){if(error.name==='AbortError')return}
+ }
+ await copyShareLink(button);
+}
+</script>"""
+
 def page(body,title="SABER ACTROS DZ",**context):
-    template="""<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{title}}</title>"""+CSS+"""</head><body>
+    template="""<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{title}}</title>
+<meta name="description" content="{{og_description}}">
+<link rel="canonical" href="{{og_url}}">
+<meta property="og:type" content="{{og_type}}">
+<meta property="og:site_name" content="SABER ACTROS DZ">
+<meta property="og:locale" content="ar_SA">
+<meta property="og:title" content="{{og_title}}">
+<meta property="og:description" content="{{og_description}}">
+<meta property="og:url" content="{{og_url}}">
+<meta property="og:image" content="{{og_image}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{og_title}}">
+<meta name="twitter:description" content="{{og_description}}">
+<meta name="twitter:image" content="{{og_image}}">
+"""+CSS+"""</head><body>"""+SOCIAL_MACRO+"""
 <nav><strong>SABER ACTROS DZ</strong><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
 {% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a><a href="/register">حساب جديد</a>{% endif %}</div></nav>
 {% with messages=get_flashed_messages() %}{% if messages %}<div class="container"><p>{{messages|join(' • ')}}</p></div>{% endif %}{% endwith %}
-"""+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a></footer></body></html>"""
-    return render_template_string(template,title=title,me=user(),csrf=token(),contact_email=os.getenv("PUBLIC_CONTACT_EMAIL","saberbounehilat@gmail.com"),whatsapp=os.getenv("PUBLIC_WHATSAPP","966564404359"),**context)
+"""+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a></footer>"""+SOCIAL_JS+"""</body></html>"""
+    og_title=context.pop("og_title", title)
+    og_description=context.pop("og_description", "برامج فحص الشاحنات وخدمات التشخيص والبرمجة والدعم الفني لدى SABER ACTROS DZ")
+    og_image=context.pop("og_image", SITE_URL+"/static/hero.webp")
+    og_url=context.pop("og_url", SITE_URL)
+    og_type=context.pop("og_type", "website")
+    return render_template_string(template,title=title,me=user(),csrf=token(),contact_email=os.getenv("PUBLIC_CONTACT_EMAIL","saberbounehilat@gmail.com"),whatsapp=os.getenv("PUBLIC_WHATSAPP","966564404359"),og_title=og_title,og_description=og_description,og_image=og_image,og_url=og_url,og_type=og_type,**context)
 @app.get("/")
 def home():
     products=DB().scalars(select(Product).where(Product.visible==True)).all()
