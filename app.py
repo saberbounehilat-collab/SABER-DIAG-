@@ -153,6 +153,9 @@ small{color:#a7bacd}footer{text-align:center;padding:25px;margin-top:60px;backgr
 .product-image{width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:10px}.gallery-image{width:100%;height:220px;object-fit:cover;border-radius:12px}.photo-actions{display:flex;gap:10px;flex-wrap:wrap}
 .copy-link{background:#24394e;color:#eaf3fa;border:1px solid #4b6279;font-size:.86rem;padding:7px 12px;margin-inline-start:8px;font-weight:500}
 .copy-link:hover{background:#314e6b}
+.share-link{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:38px;height:38px;padding:7px!important;cursor:pointer;border-radius:10px;margin-inline-start:7px}
+.share-link svg{display:block;flex:none}
+.share-link:hover,.share-link:focus-visible{background:#2f5477;color:#fff}
 
 .install-app-button{background:#168252!important;color:#fff!important;border:1px solid #62cd91!important}
 .install-app-button:hover,.install-app-button:focus-visible{background:#1ba462!important}
@@ -177,7 +180,7 @@ def page(body,title="SABER ACTROS DZ",**context):
 <span class="wa-inquiry-text"><span>واتساب للاستفسار</span><span class="wa-inquiry-hours">24/24</span></span></a></div><span class="brand-caption">أبو يزن · <bdi dir="ltr">00966564404359</bdi></span></div><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/catalog">كتالوج</a><a href="/catalog/pdfs">كتالوجات PDF</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
 {% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/catalog">إدارة الكتالوج</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a>{% endif %}</div></nav>
 {% with messages=get_flashed_messages() %}{% if messages %}<div class="container"><p>{{messages|join(' • ')}}</p></div>{% endif %}{% endwith %}
-"""+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a> · <button type="button" class="copy-link" data-path="/" onclick="copyStoreLink(this)">نسخ رابط المتجر</button> · <button type="button" class="install-app-button install-footer" onclick="installStoreApp(this)">📲 تثبيت المتجر على الهاتف</button></footer><script>
+"""+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a> · <button type="button" class="copy-link share-link" data-path="/" data-title="SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button> · <button type="button" class="install-app-button install-footer" onclick="installStoreApp(this)">📲 تثبيت المتجر على الهاتف</button></footer><script>
 async function copyStoreLink(el){
   const url = new URL(el.dataset.path || "/", window.location.origin).href;
   try {
@@ -190,12 +193,23 @@ async function copyStoreLink(el){
       const success=document.execCommand("copy");temp.remove();
       if(!success)throw Error("copy failed");
     }
-    const oldText=el.textContent;
-    el.textContent="✓ تم نسخ الرابط";
-    setTimeout(()=>{el.textContent=oldText;},1900);
+    const oldHTML=el.innerHTML;
+    el.textContent="✓";
+    el.setAttribute("aria-label","تم نسخ الرابط");
+    setTimeout(()=>{el.innerHTML=oldHTML;el.setAttribute("aria-label","مشاركة الرابط");},1900);
   } catch(e) {
     window.prompt("انسخ الرابط:",url);
   }
+}
+
+async function shareStoreLink(el) {
+  const url=new URL(el.dataset.path||"/",window.location.origin).href;
+  const title=el.dataset.title||"SABER ACTROS DZ";
+  if(navigator.share){
+    try { await navigator.share({title,url}); return; }
+    catch(e){ if(e.name==="AbortError") return; }
+  }
+  await copyStoreLink(el);
 }
 </script><script src="/static/install.js" defer></script></body></html>"""
     return render_template_string(template,title=title,me=user(),csrf=token(),contact_email=os.getenv("PUBLIC_CONTACT_EMAIL","saberbounehilat@gmail.com"),whatsapp=os.getenv("PUBLIC_WHATSAPP","966564404359"),**context)
@@ -206,7 +220,7 @@ def home():
     hero_id=DB().scalar(select(Photo.id).where(Photo.kind=="hero",Photo.status=="approved").order_by(Photo.id.desc()))
     return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><div class="hero-actions"><a class="button" href="#products">استعرض البرامج</a><a class="button" href="/catalog">كتالوج</a><button class="button install-app-button" type="button" onclick="installStoreApp(this)">📲 تثبيت المتجر</button></div></div></header>
 <div class="container"><section id="products"><h2>البرامج والخدمات</h2><div class="grid">{% for p in products %}
-<div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a><button type="button" class="copy-link" data-path="/order/{{p.slug}}" onclick="copyStoreLink(this)">نسخ الرابط</button></div>
+<div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a><button type="button" class="copy-link share-link" data-path="/order/{{p.slug}}" data-title="{{p.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button></div>
 {% endfor %}</div></section>
 <section class="card" id="contact"><h2>تواصل قبل الدفع</h2><p>لا يوجد دفع تلقائي. سيتم التواصل معك لتوضيح السعر وطريقة الدفع، ولن يُؤكد الطلب إلا بواسطة المدير.</p>
 <a class="button" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener">واتساب <bdi dir="ltr">00966564404359</bdi></a><p>البريد: <a href="mailto:{{contact_email}}">{{contact_email}}</a></p>
