@@ -156,6 +156,10 @@ small{color:#a7bacd}footer{text-align:center;padding:25px;margin-top:60px;backgr
 .admin-photo-form{margin-top:12px;padding:14px;background:#0c1b2e;border:1px solid #314b65;border-radius:10px}
 .admin-photo-form input[type=file]{margin:8px 0}
 .admin-photo-form button{margin-top:5px}
+.store-sharing{width:min(700px,100%);margin:24px auto 0;padding:12px 20px;border-radius:15px;background:rgba(6,17,34,.7);border:1px solid #ffffff25;text-align:right}
+.store-sharing h3{margin:0 0 8px;font-size:1.1rem}
+footer .footer-share{max-width:760px;margin:0 auto 15px;text-align:right}
+footer .sharebox{justify-content:center}
 .admin-product-image{max-width:210px;width:100%;max-height:120px;object-fit:contain;border-radius:9px;float:left}
 @media(max-width:620px){.admin-product-image{float:none;display:block;margin:10px 0}}
 </style>"""
@@ -224,27 +228,30 @@ def page(body,title="SABER ACTROS DZ",**context):
 <nav><strong>SABER ACTROS DZ</strong><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
 {% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a><a href="/register">حساب جديد</a>{% endif %}</div></nav>
 {% with messages=get_flashed_messages() %}{% if messages %}<div class="container"><p>{{messages|join(' • ')}}</p></div>{% endif %}{% endwith %}
-"""+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a></footer>"""+SOCIAL_JS+"""</body></html>"""
+"""+body+"""<footer><h3>شارك متجر SABER ACTROS DZ</h3><div class="footer-share">{{ sharing(store_share) }}</div><p>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a></p></footer>"""+SOCIAL_JS+"""</body></html>"""
     og_title=context.pop("og_title", title)
     og_description=context.pop("og_description", "برامج فحص الشاحنات وخدمات التشخيص والبرمجة والدعم الفني لدى SABER ACTROS DZ")
     og_image=context.pop("og_image", SITE_URL+"/static/hero.webp")
     og_url=context.pop("og_url", SITE_URL)
     og_type=context.pop("og_type", "website")
+    context.setdefault("store_share",share_links(SITE_URL,"SABER ACTROS DZ | متجر برامج فحص الشاحنات",SITE_URL+"/static/hero.webp"))
     return render_template_string(template,title=title,me=user(),csrf=token(),contact_email=os.getenv("PUBLIC_CONTACT_EMAIL","saberbounehilat@gmail.com"),whatsapp=os.getenv("PUBLIC_WHATSAPP","966564404359"),og_title=og_title,og_description=og_description,og_image=og_image,og_url=og_url,og_type=og_type,**context)
 @app.get("/")
 def home():
     products=DB().scalars(select(Product).where(Product.visible==True)).all()
     photo_ids={p.product_id:p.id for p in DB().scalars(select(Photo).where(Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.asc())).all()}
     hero_id=DB().scalar(select(Photo.id).where(Photo.kind=="hero",Photo.status=="approved").order_by(Photo.id.desc()))
-    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><a class="button" href="#products">استعرض البرامج</a></div></header>
+    store_share=share_links(SITE_URL,"SABER ACTROS DZ | متجر برامج فحص الشاحنات",SITE_URL+"/static/hero.webp")
+    shares={p.id:share_links(SITE_URL+"/product/"+p.slug,"SABER ACTROS DZ | "+p.title,SITE_URL+"/photos/file/"+str(photo_ids[p.id]) if photo_ids.get(p.id) else SITE_URL+"/static/hero.webp") for p in products}
+    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><a class="button" href="#products">استعرض البرامج</a><div class="store-sharing"><h3>شارك المتجر مع أصدقائك وعملائك</h3>{{ sharing(store_share) }}</div></div></header>
 <div class="container"><section id="products"><h2>البرامج والخدمات</h2><div class="grid">{% for p in products %}
-<div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a></div>
+<div class="card">{% if photo_ids.get(p.id) %}<a href="/product/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><div class="product-controls"><a class="button" href="/product/{{p.slug}}">تفاصيل البرنامج</a><a class="button" href="/order/{{p.slug}}">اطلب الآن</a></div>{{ sharing(shares[p.id]) }}</div>
 {% endfor %}</div></section>
 <section class="card" id="contact"><h2>تواصل قبل الدفع</h2><p>لا يوجد دفع تلقائي. سيتم التواصل معك لتوضيح السعر وطريقة الدفع، ولن يُؤكد الطلب إلا بواسطة المدير.</p>
 <a class="button" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener">واتساب +966 56 440 4359</a><p>البريد: <a href="mailto:{{contact_email}}">{{contact_email}}</a></p>
 <h3>أرسل استفسارك</h3><form method="post" action="/contact"><input type="hidden" name="csrf" value="{{csrf}}">
 <label>الاسم<input name="name" maxlength="120" required></label><label>البريد الإلكتروني<input name="email" type="email" required></label><label>الرسالة<textarea name="message" maxlength="2000" required></textarea></label>
-<label><input type="checkbox" name="consent" required>أوافق على إرسال بريدي وبياناتي لغرض الرد، وفق <a href="/privacy">سياسة الخصوصية</a>.</label><button>إرسال</button></form></section></div>""",products=products,photo_ids=photo_ids,hero_id=hero_id)
+<label><input type="checkbox" name="consent" required>أوافق على إرسال بريدي وبياناتي لغرض الرد، وفق <a href="/privacy">سياسة الخصوصية</a>.</label><button>إرسال</button></form></section></div>""",products=products,photo_ids=photo_ids,hero_id=hero_id,store_share=store_share,shares=shares)
 @app.post("/contact")
 def contact():
     e=field("email",254).lower()
@@ -282,6 +289,26 @@ def auth(title,register_mode):
 @app.post("/logout")
 def logout():
     session.clear();return redirect("/")
+@app.get("/product/<slug>")
+def product_details(slug):
+    d=DB()
+    p=d.scalar(select(Product).where(Product.slug==slug,Product.visible==True))
+    if not p: abort(404)
+    photo_id=d.scalar(select(Photo.id).where(Photo.product_id==p.id,Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.desc()))
+    product_url=SITE_URL+"/product/"+p.slug
+    photo_url=SITE_URL+"/photos/file/"+str(photo_id) if photo_id else SITE_URL+"/static/hero.webp"
+    share=share_links(product_url,"SABER ACTROS DZ | "+p.title,photo_url)
+    return page("""<div class="container"><article class="card product-detail">
+<p><a href="/#products">الرئيسية / البرامج والخدمات</a></p>
+{% if photo_id %}<img class="product-image" src="/photos/file/{{photo_id}}" alt="صورة {{p.title}}">{% endif %}
+<small>{{p.brand}}</small><h1>{{p.title}}</h1>
+<p>{{p.description}}</p>
+<p class="muted">اطلب الخدمة أولًا، وسيتم التواصل معك لتوضيح السعر ومعلومات الدفع. تأكيد الدفع يدوي بواسطة المدير.</p>
+<div class="product-controls"><a class="button" href="/order/{{p.slug}}">اطلب هذا البرنامج</a><a class="button" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener">استفسر عبر واتساب</a></div>
+<h2>شارك هذا البرنامج أو الخدمة</h2>
+{{ sharing(share) }}
+</article></div>""",
+title=p.title+" | SABER ACTROS DZ",p=p,photo_id=photo_id,share=share,og_title=p.title+" | SABER ACTROS DZ",og_description=p.description,og_image=photo_url,og_url=product_url,og_type="product")
 @app.route("/order/<slug>",methods=["GET","POST"])
 def order(slug):
     d=DB();p=d.scalar(select(Product).where(Product.slug==slug,Product.visible==True))
@@ -315,13 +342,22 @@ def admin():
     inquiries=d.scalars(select(Inquiry).order_by(Inquiry.id.desc()).limit(200)).all()
     products=d.scalars(select(Product)).all()
     customers=d.scalars(select(User).where(User.admin==False).limit(200)).all()
+    photo_ids={x.product_id:x.id for x in d.scalars(select(Photo).where(Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.asc())).all()}
     return page("""<div class="container"><h1>لوحة الإدارة</h1><div class="grid"><div class="card"><h2>{{views}}</h2>مشاهدات الصفحات</div><div class="card"><h2>{{uniques}}</h2>زوار فريدون تقريبياً حسب اليوم</div><div class="card"><h2>{{orders|length}}</h2>طلبات معروضة</div></div>
 <section><h2>الطلبات</h2><div class="scroll"><table><tr><th>الرقم</th><th>العميل</th><th>البريد</th><th>البرنامج</th><th>التفاصيل</th><th>الحالة</th></tr>{% for o,p in orders %}
 <tr><td>{{o.reference}}</td><td>{{o.name}}</td><td>{{o.email}}</td><td>{{p.title}}</td><td>{{o.contact}} {{o.notes}}</td><td><form method="post" action="/admin/order/{{o.id}}"><input type="hidden" name="csrf" value="{{csrf}}"><select name="status">{% for s in statuses %}<option value="{{s}}" {% if o.status==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select><button>حفظ</button></form></td></tr>{% endfor %}</table></div></section>
 <section><h2>رسائل العملاء (بموافقتهم)</h2><div class="grid">{% for i in inquiries %}<div class="card"><b>{{i.name}}</b> · {{i.email}}<p>{{i.message}}</p></div>{% endfor %}</div></section>
 <section><h2>العملاء المسجلون</h2><div class="grid">{% for c in customers %}<div class="card">{{c.name}} · {{c.email}}</div>{% endfor %}</div></section>
 <section><h2>إضافة منتج أو خدمة</h2><form method="post" action="/admin/product" class="card"><input type="hidden" name="csrf" value="{{csrf}}"><label>الاسم<input name="title" required></label><label>العلامة<input name="brand" required></label><label>الوصف<textarea name="description" required></textarea></label><button>إضافة</button></form>
-{% for p in products %}<div class="card">{{p.title}} · {{'معروض' if p.visible else 'مخفي'}}<form method="post" action="/admin/product/{{p.id}}/toggle"><input type="hidden" name="csrf" value="{{csrf}}"><button>إظهار/إخفاء</button></form></div>{% endfor %}</section></div>""",views=views,uniques=uniques,orders=orders,inquiries=inquiries,customers=customers,products=products,statuses=["awaiting_contact","awaiting_payment","paid","delivered","rejected"])
+{% for p in products %}<div class="card">
+{% if photo_ids.get(p.id) %}<img class="admin-product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}">{% endif %}
+<h3>{{p.title}}</h3><p>{{'معروض' if p.visible else 'مخفي'}} · <a href="/product/{{p.slug}}" target="_blank" rel="noopener">عرض ومشاركة البرنامج</a></p>
+<form class="admin-photo-form" method="post" action="/admin/photos/product/{{p.id}}" enctype="multipart/form-data">
+<input type="hidden" name="csrf" value="{{csrf}}">
+<label>أضف أو غيّر صورة هذا البرنامج<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required></label>
+<small>JPG / PNG / WebP بحد أقصى 4 ميغابايت</small><p><button type="submit">رفع صورة المنتج</button></p></form>
+<form method="post" action="/admin/product/{{p.id}}/toggle"><input type="hidden" name="csrf" value="{{csrf}}"><button>إظهار/إخفاء المنتج</button></form>
+</div>{% endfor %}</section></div>""",views=views,uniques=uniques,orders=orders,inquiries=inquiries,customers=customers,products=products,photo_ids=photo_ids,statuses=["awaiting_contact","awaiting_payment","paid","delivered","rejected"])
 @app.post("/admin/order/<int:id>")
 @admin_only
 def update_order(id):
