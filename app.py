@@ -124,10 +124,10 @@ def admin_only(fn):
         return fn(*args,**kwargs)
     return wrapped
 CSS="""<style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0b1220;color:#edf4ff;font:16px system-ui,Arial;line-height:1.8}
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:linear-gradient(rgba(8,16,29,.94),rgba(8,16,29,.97)),url('/static/hero.webp') center top/cover fixed no-repeat;background-color:#0b1220;color:#edf4ff;font:16px system-ui,Arial;line-height:1.8}
 a{color:#6bdbf0;text-decoration:none}nav{display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:17px max(20px,5%);background:#121f32;border-bottom:1px solid #29405a}
 nav strong{color:#ffcb55;font-size:21px}.links{display:flex;gap:16px;flex-wrap:wrap}.container{width:min(1100px,94%);margin:auto}
-.hero{padding:90px 0 78px;text-align:center;background:linear-gradient(145deg,#142a42,#0b1220);background-size:cover;background-position:center 55%;min-height:440px;display:flex;align-items:center;justify-content:center}.hero .container{position:relative;text-shadow:0 2px 15px #000b}.hero .button{text-shadow:none}h1{font-size:clamp(30px,5vw,52px);margin:8px}h2{color:#f8c75b}.muted{color:#a7bacd}
+.hero{padding:90px 0 78px;text-align:center;background:linear-gradient(90deg,rgba(2,12,24,.83),rgba(2,12,24,.4),rgba(2,12,24,.83)),url('/static/hero.webp') center 52%/cover no-repeat;min-height:440px;display:flex;align-items:center;justify-content:center}.hero .container{position:relative;text-shadow:0 2px 15px #000b}.hero .button{text-shadow:none}h1{font-size:clamp(30px,5vw,52px);margin:8px}h2{color:#f8c75b}.muted{color:#a7bacd}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin:24px 0}
 .card{padding:22px;background:#142237;border:1px solid #2b445e;border-radius:16px;box-shadow:0 4px 18px #0002}
 .button,button{display:inline-block;padding:10px 19px;background:#e6b44a;color:#121a28;font-weight:bold;border:0;border-radius:9px;cursor:pointer}
