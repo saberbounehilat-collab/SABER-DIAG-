@@ -193,7 +193,7 @@ def home():
 <div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a><button type="button" class="copy-link" data-path="/order/{{p.slug}}" onclick="copyStoreLink(this)">نسخ الرابط</button></div>
 {% endfor %}</div></section>
 <section class="card" id="contact"><h2>تواصل قبل الدفع</h2><p>لا يوجد دفع تلقائي. سيتم التواصل معك لتوضيح السعر وطريقة الدفع، ولن يُؤكد الطلب إلا بواسطة المدير.</p>
-<a class="button" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener">واتساب +966 56 440 4359</a><p>البريد: <a href="mailto:{{contact_email}}">{{contact_email}}</a></p>
+<a class="button" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener">واتساب <bdi dir="ltr">00966564404359</bdi></a><p>البريد: <a href="mailto:{{contact_email}}">{{contact_email}}</a></p>
 <h3>أرسل استفسارك</h3><form method="post" action="/contact"><input type="hidden" name="csrf" value="{{csrf}}">
 <label>الاسم<input name="name" maxlength="120" required></label><label>البريد الإلكتروني<input name="email" type="email" required></label><label>الرسالة<textarea name="message" maxlength="2000" required></textarea></label>
 <label><input type="checkbox" name="consent" required>أوافق على إرسال بريدي وبياناتي لغرض الرد، وفق <a href="/privacy">سياسة الخصوصية</a>.</label><button>إرسال</button></form></section></div>""",products=products,photo_ids=photo_ids,hero_id=hero_id)
