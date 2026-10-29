@@ -22,6 +22,31 @@ CATEGORY_LABELS = dict(CATEGORIES)
 MAX_PDF_BYTES = 4 * 1024 * 1024
 
 
+def free_preview_pages(page_count):
+    """Up to four unique pages: first two, one from the middle, and the last."""
+    candidates = (
+        (0, "الصفحة الأولى"),
+        (1, "الصفحة الثانية"),
+        (page_count // 2, "صفحة من الوسط"),
+        (page_count - 1, "الصفحة الأخيرة"),
+    )
+    result = []
+    seen = set()
+    for index, label in candidates:
+        if 0 <= index < page_count and index not in seen:
+            result.append({"index": index, "label": label})
+            seen.add(index)
+    return result
+
+
+def preview_pages_for_document(doc):
+    try:
+        with fitz.open(stream=bytes(doc.pdf_data), filetype="pdf") as pdf:
+            return free_preview_pages(len(pdf))
+    except (ValueError, RuntimeError, fitz.FileDataError):
+        return []
+
+
 def register_catalog_models(Base):
     class CatalogMeta(Base):
         __tablename__ = "catalog_product_meta"
@@ -109,11 +134,12 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         preview_docs = d.scalars(select(Document).where(
             Document.visible == True
         ).order_by(Document.id.desc()).limit(40)).all()
+        preview_pages_by_id = {doc.id: preview_pages_for_document(doc) for doc in preview_docs}
         return page("""<div class="container catalog-page">
 <section class="catalog-intro">
 <h1>كتالوج</h1>
 <p class="muted">برامج فحص وبرمجة الشاحنات والخدمات التقنية حسب العلامة والشركة.</p>
-<p><strong>معاينة مجانية:</strong> يستطيع كل زائر رؤية أول صورتين (أول صفحتين) من كل كتالوج PDF دون دفع أو تسجيل دخول. بقية الصفحات لا تُعرض إلا بعد التواصل وتأكيد الدفع من الإدارة.</p>
+<p><strong>معاينة مجانية:</strong> يستطيع كل زائر رؤية صفحتين من البداية، وصفحة من الوسط، وصفحة من النهاية من كل كتالوج PDF دون دفع أو تسجيل دخول. بقية الصفحات لا تُعرض إلا بعد التواصل وتأكيد الدفع من الإدارة.</p>
 <p><a class="button" href="/catalog/pdfs">عرض جميع كتالوجات PDF وقطع الغيار</a></p>
 <form method="get" action="/catalog" class="catalog-filters">
 <label>ابحث عن برنامج أو شركة أو خدمة
@@ -129,17 +155,18 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <button type="submit">بحث وتصفية</button><a href="/catalog" class="catalog-reset">عرض الكل</a>
 </form></section>
 <section id="pdf-catalogs"><h2>معاينة كتالوجات PDF مجانًا <small>({{preview_docs|length}})</small></h2>
-<p class="muted">تظهر هنا أول صورتين من كل ملف فقط؛ باقي الملف محمي حتى تأكيد الدفع يدويًا.</p>
+<p class="muted">معاينة مجانية لما يصل إلى 4 صفحات من كل ملف: أول صفحتين، صفحة في الوسط، والصفحة الأخيرة. الصفحات الأخرى محمية.</p>
 <div class="grid">
 {% for doc in preview_docs %}
 <article class="card catalog-card">
 <small>{{doc.brand}}</small><h3>{{doc.title}}</h3><p>{{doc.description}}</p>
-<a href="/catalog/pdf/{{doc.id}}/preview" aria-label="معاينة أول صفحتين من {{doc.title}}">
+<a href="/catalog/pdf/{{doc.id}}/preview" aria-label="معاينة صفحات مختارة من {{doc.title}}">
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
-<img src="/catalog/pdf/{{doc.id}}/preview/0" loading="lazy" alt="الصفحة الأولى من {{doc.title}}" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
-<img src="/catalog/pdf/{{doc.id}}/preview/1" loading="lazy" onerror="this.style.display='none'" alt="الصفحة الثانية من {{doc.title}}" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
+{% for preview in preview_pages_by_id[doc.id] %}
+<div><img src="/catalog/pdf/{{doc.id}}/preview/{{preview.index}}" loading="lazy" alt="{{preview.label}} من {{doc.title}}" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px"><small>{{preview.label}}</small></div>
+{% endfor %}
 </div></a>
-<p class="muted">صورتان مجانًا · باقي الصفحات بعد الدفع</p>
+<p class="muted">معاينة مختارة مجانًا · بقية الصفحات بعد التواصل وتأكيد الدفع</p>
 <a class="button" href="/catalog/pdf/{{doc.id}}/preview">معاينة مجانية</a>
 </article>
 {% else %}<p class="card">لا توجد كتالوجات PDF منشورة بعد. يمكن للإدارة إضافتها من لوحة إدارة الكتالوج.</p>{% endfor %}
@@ -162,7 +189,8 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 {% else %}<p class="card">لا توجد برامج مطابقة للبحث.</p>{% endfor %}
 </div></section>
 </div>""", title="كتالوج | SABER ACTROS DZ",
-            items=filtered_products, preview_docs=preview_docs, brands=brands,
+            items=filtered_products, preview_docs=preview_docs,
+            preview_pages_by_id=preview_pages_by_id, brands=brands,
             categories=CATEGORIES, labels=CATEGORY_LABELS, q=q,
             selected_brand=brand, selected_category=category)
 
@@ -183,6 +211,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
             and (not category or doc.category==category)
             and found(doc.title, doc.brand, doc.description, q=q.casefold())
         ]
+        preview_pages_by_id = {doc.id: preview_pages_for_document(doc) for doc in result}
         return page("""<div class="container catalog-page">
 <section class="catalog-intro">
 <h1>كتالوجات PDF وقطع الغيار</h1>
@@ -208,17 +237,18 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <h3>{{doc.title}}</h3><p>{{doc.description}}</p>
 <a href="/catalog/pdf/{{doc.id}}/preview" aria-label="معاينة مجانية للكتالوج">
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
-<img src="/catalog/pdf/{{doc.id}}/preview/0" loading="lazy" alt="صورة الصفحة الأولى" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
-<img src="/catalog/pdf/{{doc.id}}/preview/1" loading="lazy" onerror="this.style.display='none'" alt="صورة الصفحة الثانية" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
+{% for preview in preview_pages_by_id[doc.id] %}
+<div><img src="/catalog/pdf/{{doc.id}}/preview/{{preview.index}}" loading="lazy" alt="{{preview.label}} من {{doc.title}}" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px"><small>{{preview.label}}</small></div>
+{% endfor %}
 </div></a>
-<p class="muted">🔒 صفحتان مجانًا، وبقية الملف بعد التواصل وتأكيد الدفع يدويًا.</p>
+<p class="muted">🔒 صفحتان من البداية، وصفحة من الوسط، والصفحة الأخيرة مجانًا. بقية الملف بعد تأكيد الدفع يدويًا.</p>
 <div class="catalog-actions">
-<a class="button" href="/catalog/pdf/{{doc.id}}/preview">عرض أول صورتين مجانًا</a>
+<a class="button" href="/catalog/pdf/{{doc.id}}/preview">عرض الصفحات المجانية</a>
 <button type="button" class="copy-link share-link" data-path="/catalog/pdf/{{doc.id}}" data-title="{{doc.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
 </div></article>
 {% else %}<p class="card">لا توجد كتالوجات PDF منشورة حاليًا.</p>{% endfor %}
 </div></section></div>""",title="كتالوجات PDF وقطع الغيار | SABER ACTROS DZ",
-            docs=result,labels=CATEGORY_LABELS,categories=CATEGORIES,
+            docs=result,preview_pages_by_id=preview_pages_by_id,labels=CATEGORY_LABELS,categories=CATEGORIES,
             brands=brands,q=q,selected_brand=brand,selected_category=category)
 
     @app.get("/catalog/product/<slug>")
@@ -254,29 +284,28 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
             abort(404)
         try:
             with fitz.open(stream=bytes(doc.pdf_data), filetype="pdf") as pdf:
-                preview_count = min(2, len(pdf))
+                preview_pages = free_preview_pages(len(pdf))
         except (ValueError, RuntimeError, fitz.FileDataError):
             abort(404)
         return page("""<div class="container"><section class="card catalog-detail">
 <h1>{{doc.title}}</h1><p>{{doc.description}}</p>
-<p>معاينة مجانية لأول صورتين فقط من الكتالوج دون دفع أو تسجيل دخول.</p>
-{% for i in range(preview_count) %}
-<img src="/catalog/pdf/{{doc.id}}/preview/{{i}}" alt="معاينة الصفحة {{i+1}}" style="width:100%;height:auto;margin:12px 0" loading="lazy">
+<p>المعاينة المجانية: أول صفحتين، صفحة من الوسط، والصفحة الأخيرة دون دفع أو تسجيل دخول. في الكتالوج القصير قد يقل العدد عن أربع صفحات دون تكرار.</p>
+{% for preview in preview_pages %}
+<div style="margin:16px 0"><h2>{{preview.label}} (رقم {{preview.index+1}})</h2>
+<img src="/catalog/pdf/{{doc.id}}/preview/{{preview.index}}" alt="{{preview.label}}" style="width:100%;height:auto;margin:8px 0" loading="lazy"></div>
 {% endfor %}
 <p>🔒 بقية الصفحات محمية، ويُسلَّم الكتالوج الكامل بعد التواصل والدفع وموافقة الإدارة يدويًا.</p>
 <a class="button" href="https://wa.me/{{whatsapp}}?text={{('أريد شراء الكتالوج '+doc.title+' رقم '+doc.id|string)|urlencode}}" target="_blank" rel="noopener">اطلب الكتالوج الكامل</a>
-</section></div>""",doc=doc,preview_count=preview_count)
+</section></div>""",doc=doc,preview_pages=preview_pages)
 
     @app.get("/catalog/pdf/<int:doc_id>/preview/<int:page_number>")
     def preview_catalog_page(doc_id,page_number):
-        if page_number not in (0,1):
-            abort(404)
         doc=DB().get(Document,doc_id)
         if not doc or not doc.visible:
             abort(404)
         try:
             with fitz.open(stream=bytes(doc.pdf_data),filetype="pdf") as pdf:
-                if page_number>=len(pdf):
+                if page_number not in {item["index"] for item in free_preview_pages(len(pdf))}:
                     abort(404)
                 image=pdf[page_number].get_pixmap(matrix=fitz.Matrix(1.3,1.3),alpha=False)
                 from PIL import Image
@@ -349,7 +378,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <a href="/admin/photos">إدارة صور المنتجات</a></p>
 </div>{% endfor %}</div></section>
 <section class="card"><h2>رفع كتالوج PDF</h2>
-<p class="muted">ملفات PDF بحجم 4 ميغابايت كحد أقصى. تظهر أول صورتين من كل PDF على صفحة الكتالوج الرئيسية مجانًا. بقية الصفحات محمية ولا يُسلَّم الملف الكامل إلا بعد تأكيدك الدفع يدويًا.</p>
+<p class="muted">ملفات PDF بحجم 4 ميغابايت كحد أقصى. تظهر صفحتان من البداية وصفحة من الوسط والصفحة الأخيرة من كل PDF على صفحة الكتالوج مجانًا. بقية الصفحات محمية ولا يُسلَّم الملف الكامل إلا بعد تأكيدك الدفع يدويًا.</p>
 <form method="post" action="/admin/catalog/pdf" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{csrf}}">
 <label>اسم الكتالوج<input name="title" maxlength="160" required></label>
