@@ -22,11 +22,12 @@ DB=scoped_session(sessionmaker(bind=engine))
 Base=declarative_base()
 from photos import register_photo_model, setup_photo_routes
 from catalog import register_catalog_models, setup_catalog_routes
-from videos import register_video_model, setup_video_routes
+from videos import register_video_model, register_direct_video_model, setup_video_routes
 from workshops import register_workshop_model, setup_workshops_routes
 Photo=register_photo_model(Base)
 CatalogMeta, CatalogDocument=register_catalog_models(Base)
 TutorialVideo=register_video_model(Base)
+DirectVideo=register_direct_video_model(Base)
 Workshop=register_workshop_model(Base)
 class User(Base):
     __tablename__="users"
@@ -297,7 +298,7 @@ def admin():
 <tr><td>{{o.reference}}</td><td>{{o.name}}</td><td>{{o.email}}</td><td>{{p.title}}</td><td>{{o.contact}} {{o.notes}}</td><td><form method="post" action="/admin/order/{{o.id}}"><input type="hidden" name="csrf" value="{{csrf}}"><select name="status">{% for s in statuses %}<option value="{{s}}" {% if o.status==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select><button>حفظ</button></form></td></tr>{% endfor %}</table></div></section>
 <section><h2>رسائل العملاء (بموافقتهم)</h2><div class="grid">{% for i in inquiries %}<div class="card"><b>{{i.name}}</b> · {{i.email}}<p>{{i.message}}</p></div>{% endfor %}</div></section>
 <section><h2>العملاء المسجلون</h2><div class="grid">{% for c in customers %}<div class="card">{{c.name}} · {{c.email}}</div>{% endfor %}</div></section>
-<section><h2>دليل الورش</h2><p class="muted">أضف صور الورش وأرقام التواصل وعناوينها وحدد مواقعها على الخريطة.</p><a class="button" href="/admin/workshops">إدارة الورش ومواقعها</a></section><section><h2>الفيديوهات التعليمية</h2><p class="muted">أضف فيديوهات دروسك التعليمية من يوتيوب لتظهر للزوار.</p><a class="button" href="/admin/videos">إدارة الفيديوهات</a></section>
+<section><h2>دليل الورش</h2><p class="muted">أضف صور الورش وأرقام التواصل وعناوينها وحدد مواقعها على الخريطة.</p><a class="button" href="/admin/workshops">إدارة الورش ومواقعها</a></section><section><h2>الفيديوهات التعليمية</h2><p class="muted">أضف روابط مباشرة لفيديوهات MP4 أو WebM لتعمل داخل المتجر دون الانتقال إلى YouTube.</p><a class="button" href="/admin/videos">إدارة الفيديوهات</a></section>
 <section><h2>إدارة الكتالوج</h2><p class="muted">برامج الفحص والبرمجة منفصلة عن كتالوجات PDF وقطع الغيار.</p><p><a class="button" href="/admin/catalog">فتح لوحة إدارة الكتالوج</a> <a href="/catalog">كتالوج</a> · <a href="/catalog/pdfs">كتالوجات PDF</a></p></section><section><h2>إضافة منتج أو خدمة</h2><form method="post" action="/admin/product" class="card"><input type="hidden" name="csrf" value="{{csrf}}"><label>الاسم<input name="title" required></label><label>العلامة<input name="brand" required></label><label>الوصف<textarea name="description" required></textarea></label><button>إضافة</button></form>
 {% for p in products %}<div class="card">{{p.title}} · {{'معروض' if p.visible else 'مخفي'}}<form method="post" action="/admin/product/{{p.id}}/toggle"><input type="hidden" name="csrf" value="{{csrf}}"><button>إظهار/إخفاء</button></form></div>{% endfor %}</section></div>""",views=views,uniques=uniques,orders=orders,inquiries=inquiries,customers=customers,products=products,statuses=["awaiting_contact","awaiting_payment","paid","delivered","rejected"])
 @app.post("/admin/order/<int:id>")
@@ -345,5 +346,5 @@ def robots():return "User-agent: *\nDisallow: /admin\nDisallow: /my-orders\nDisa
 setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, User)
 setup_catalog_routes(app, CatalogMeta, CatalogDocument, DB, Product, Photo, user, page, field, admin_only)
 setup_workshops_routes(app, Workshop, DB, page, admin_only)
-setup_video_routes(app, TutorialVideo, DB, page, admin_only)
+setup_video_routes(app, TutorialVideo, DB, page, admin_only, DirectVideo)
 if __name__=="__main__":app.run(port=int(os.getenv("PORT","5000")))
