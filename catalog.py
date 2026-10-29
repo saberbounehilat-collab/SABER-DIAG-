@@ -374,6 +374,12 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <label><input type="checkbox" name="visible" value="yes" {% if p.visible %}checked{% endif %}> ظاهر في المتجر والكتالوج</label>
 <button type="submit">حفظ التعديلات</button>
 </form>
+<div class="product-admin-actions">
+<a class="button" href="/admin/product/{{p.id}}/edit">✏️ تعديل من الإدارة</a>
+<form method="post" action="/admin/product/{{p.id}}/delete" onsubmit="return confirm('حذف المنتج؟ إذا كان مرتبطًا بطلبات قديمة فسيتم إخفاؤه للمحافظة على سجل الطلبات.')">
+<input type="hidden" name="csrf" value="{{csrf}}">
+<button type="submit" class="danger-button">🗑️ حذف المنتج</button>
+</form></div>
 <p><a href="/catalog/product/{{p.slug}}">عرض المنتج</a> ·
 <a href="/admin/photos">إدارة صور المنتجات</a></p>
 </div>{% endfor %}</div></section>
