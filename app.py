@@ -20,6 +20,8 @@ url=url.replace("postgres://","postgresql+psycopg://",1).replace("postgresql://"
 engine=create_engine(url,pool_pre_ping=True,connect_args={"check_same_thread":False} if url.startswith("sqlite") else {})
 DB=scoped_session(sessionmaker(bind=engine))
 Base=declarative_base()
+from photos import register_photo_model, setup_photo_routes
+Photo=register_photo_model(Base)
 class User(Base):
     __tablename__="users"
     id=Column(Integer,primary_key=True)
@@ -97,7 +99,7 @@ def valid_email(e):
 @app.before_request
 def before():
     if request.method=="POST" and not secrets.compare_digest(str(session.get("csrf","")),str(request.form.get("csrf",""))):abort(400)
-    if request.method!="GET" or request.path.startswith(("/admin","/health","/static")):return
+    if request.method!="GET" or request.path.startswith(("/admin","/health","/static","/photos/")):return
     key=session.setdefault("visitor",secrets.token_urlsafe(20))
     day=datetime.now(timezone.utc).date().isoformat()
     digest=hashlib.sha256((app.secret_key+key).encode()).hexdigest()
@@ -126,26 +128,28 @@ nav strong{color:#ffcb55;font-size:21px}.links{display:flex;gap:16px;flex-wrap:w
 input,textarea,select{width:100%;padding:12px;margin:8px 0 16px;color:#eff7fd;background:#0b1929;border:1px solid #47647a;border-radius:9px}
 label{display:block}input[type=checkbox]{width:auto;margin-left:8px}section{margin:40px 0}
 small{color:#a7bacd}footer{text-align:center;padding:25px;margin-top:60px;background:#121f32}table{width:100%;border-collapse:collapse;min-width:650px}td,th{padding:9px;border-bottom:1px solid #355068;text-align:right}.scroll{overflow-x:auto}
+.product-image{width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:10px}.gallery-image{width:100%;height:220px;object-fit:cover;border-radius:12px}.photo-actions{display:flex;gap:10px;flex-wrap:wrap}
 </style>"""
 def page(body,title="SABER ACTROS DZ",**context):
     template="""<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{title}}</title>"""+CSS+"""</head><body>
-<nav><strong>SABER ACTROS DZ</strong><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/#contact">تواصل معنا</a>
-{% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a><a href="/register">حساب جديد</a>{% endif %}</div></nav>
+<nav><strong>SABER ACTROS DZ</strong><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
+{% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a><a href="/register">حساب جديد</a>{% endif %}</div></nav>
 {% with messages=get_flashed_messages() %}{% if messages %}<div class="container"><p>{{messages|join(' • ')}}</p></div>{% endif %}{% endwith %}
 """+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a></footer></body></html>"""
     return render_template_string(template,title=title,me=user(),csrf=token(),contact_email=os.getenv("PUBLIC_CONTACT_EMAIL","saberbounehilat@gmail.com"),whatsapp=os.getenv("PUBLIC_WHATSAPP","966564404359"),**context)
 @app.get("/")
 def home():
     products=DB().scalars(select(Product).where(Product.visible==True)).all()
+    photo_ids={p.product_id:p.id for p in DB().scalars(select(Photo).where(Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.asc())).all()}
     return page("""<header class="hero"><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><a class="button" href="#products">استعرض البرامج</a></div></header>
 <div class="container"><section id="products"><h2>البرامج والخدمات</h2><div class="grid">{% for p in products %}
-<div class="card"><small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a></div>
+<div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a></div>
 {% endfor %}</div></section>
 <section class="card" id="contact"><h2>تواصل قبل الدفع</h2><p>لا يوجد دفع تلقائي. سيتم التواصل معك لتوضيح السعر وطريقة الدفع، ولن يُؤكد الطلب إلا بواسطة المدير.</p>
 <a class="button" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener">واتساب +966 56 440 4359</a><p>البريد: <a href="mailto:{{contact_email}}">{{contact_email}}</a></p>
 <h3>أرسل استفسارك</h3><form method="post" action="/contact"><input type="hidden" name="csrf" value="{{csrf}}">
 <label>الاسم<input name="name" maxlength="120" required></label><label>البريد الإلكتروني<input name="email" type="email" required></label><label>الرسالة<textarea name="message" maxlength="2000" required></textarea></label>
-<label><input type="checkbox" name="consent" required>أوافق على إرسال بريدي وبياناتي لغرض الرد، وفق <a href="/privacy">سياسة الخصوصية</a>.</label><button>إرسال</button></form></section></div>""",products=products)
+<label><input type="checkbox" name="consent" required>أوافق على إرسال بريدي وبياناتي لغرض الرد، وفق <a href="/privacy">سياسة الخصوصية</a>.</label><button>إرسال</button></form></section></div>""",products=products,photo_ids=photo_ids)
 @app.post("/contact")
 def contact():
     e=field("email",254).lower()
@@ -245,9 +249,10 @@ def toggle(id):
     p.visible=not p.visible;DB().commit();return redirect("/admin")
 @app.get("/privacy")
 def privacy():
-    return page("""<div class="container"><section class="card"><h1>سياسة الخصوصية</h1><p>نستخدم ملف تعريف جلسة آمن لعدّ الزيارات بصورة تقريبية دون معرفة البريد الإلكتروني للزائر تلقائياً.</p><p>نجمع الاسم والبريد الإلكتروني اللذين يقدمهما العميل بموافقته عند التسجيل أو الطلب أو التواصل، ونستخدمهما لخدمة العميل وإدارة طلباته.</p><p>يمكنك مراسلتنا لطلب تصحيح أو حذف بياناتك عبر {{contact_email}}. لا تُعرض معلوماتك لزوار الموقع.</p></section></div>""")
+    return page("""<div class="container"><section class="card"><h1>سياسة الخصوصية</h1><p>نستخدم ملف تعريف جلسة آمن لعدّ الزيارات بصورة تقريبية دون معرفة البريد الإلكتروني للزائر تلقائياً.</p><p>نجمع الاسم والبريد الإلكتروني اللذين يقدمهما العميل بموافقته عند التسجيل أو الطلب أو التواصل، ونستخدمهما لخدمة العميل وإدارة طلباته.</p><p>يمكنك مراسلتنا لطلب تصحيح أو حذف بياناتك عبر {{contact_email}}. لا تُعرض معلوماتك لزوار الموقع. صور الأعضاء لا تظهر للعامة إلا بعد موافقتهم على النشر ومراجعة الإدارة، وتُزال منها بيانات الصور الوصفية أثناء المعالجة.</p></section></div>""")
 @app.get("/health")
 def health():return "ok",200
 @app.get("/robots.txt")
 def robots():return "User-agent: *\nDisallow: /admin\nDisallow: /my-orders\nDisallow: /login\n",200,{"Content-Type":"text/plain"}
+setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, User)
 if __name__=="__main__":app.run(port=int(os.getenv("PORT","5000")))
