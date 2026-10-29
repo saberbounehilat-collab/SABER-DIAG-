@@ -61,7 +61,6 @@ def setup_video_routes(app, Video, DB, page, admin_only):
 <span>▶ تشغيل الدرس</span></button></div>
 <h2>{{v.title}}</h2>
 {% if v.description %}<p>{{v.description}}</p>{% endif %}
-<a href="https://www.youtube.com/watch?v={{v.youtube_id}}" target="_blank" rel="noopener noreferrer">مشاهدة على يوتيوب</a>
 </article>
 {% else %}
 <div class="card"><h2>المكتبة قيد الإعداد</h2><p>لم تُنشر فيديوهات تعليمية بعد. ستظهر هنا الفيديوهات التي تضيفها إدارة المتجر.</p></div>
