@@ -247,8 +247,10 @@ def setup_workshops_routes(app, Workshop, DB, page, admin_only):
         })
 
     def admin_page(editing=None):
-        all_shops = DB().scalars(
-            select(Workshop).order_by(Workshop.id.desc()).limit(MAX_WORKSHOPS)
+        all_shops = DB().execute(
+            select(Workshop.id, Workshop.name, Workshop.category, Workshop.address,
+                   Workshop.phone, Workshop.visible)
+            .order_by(Workshop.id.desc()).limit(MAX_WORKSHOPS)
         ).all()
         return page(
             ADMIN_PAGE, title="إدارة الورش | SABER ACTROS DZ",
