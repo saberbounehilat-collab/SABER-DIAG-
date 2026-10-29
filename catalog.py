@@ -135,7 +135,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <div class="catalog-actions">
 <a class="button" href="/catalog/product/{{p.slug}}">تفاصيل الكتالوج</a>
 <a class="button" href="/order/{{p.slug}}">اطلب الآن</a>
-<button class="copy-link" type="button" data-path="/catalog/product/{{p.slug}}" onclick="copyStoreLink(this)">نسخ الرابط</button>
+<button type="button" class="copy-link share-link" data-path="/catalog/product/{{p.slug}}" data-title="{{p.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
 </div></article>
 {% else %}<p class="card">لا توجد برامج مطابقة للبحث.</p>{% endfor %}
 </div></section>
@@ -186,7 +186,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <h3>{{doc.title}}</h3><p>{{doc.description}}</p>
 <div class="catalog-actions">
 <a class="button" href="/catalog/pdf/{{doc.id}}">تنزيل PDF</a>
-<button class="copy-link" type="button" data-path="/catalog/pdf/{{doc.id}}" onclick="copyStoreLink(this)">نسخ الرابط</button>
+<button type="button" class="copy-link share-link" data-path="/catalog/pdf/{{doc.id}}" data-title="{{doc.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
 </div></article>
 {% else %}<p class="card">لا توجد كتالوجات PDF منشورة حاليًا.</p>{% endfor %}
 </div></section></div>""",title="كتالوجات PDF وقطع الغيار | SABER ACTROS DZ",
@@ -212,7 +212,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 {% if specs %}<h2>المواصفات والتفاصيل</h2><p class="catalog-specs">{{specs}}</p>{% endif %}
 <p class="muted">للحصول على السعر ومعلومات الدفع، أرسل الطلب أولًا. تأكيد الدفع من المدير فقط.</p>
 <div class="catalog-actions"><a class="button" href="/order/{{p.slug}}">طلب البرنامج أو الخدمة</a>
-<button class="copy-link" type="button" data-path="/catalog/product/{{p.slug}}" onclick="copyStoreLink(this)">نسخ الرابط</button></div>
+<button type="button" class="copy-link share-link" data-path="/catalog/product/{{p.slug}}" data-title="{{p.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button></div>
 </section></div>""",title=p.title+" | كتالوج SABER ACTROS DZ",
            p=p,photo_id=photo_id,category_name=CATEGORY_LABELS.get(cat,cat),
            specs=meta.specifications if meta else "")
