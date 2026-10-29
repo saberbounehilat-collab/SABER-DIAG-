@@ -43,6 +43,10 @@ class Product(Base):
     brand=Column(String(80),nullable=False)
     description=Column(Text,nullable=False)
     visible=Column(Boolean,default=True)
+class StoreState(Base):
+    """Tracks initial catalog setup so deleting all products does not restore demo products."""
+    __tablename__="store_state"
+    id=Column(Integer,primary_key=True)
 class Order(Base):
     __tablename__="orders"
     id=Column(Integer,primary_key=True)
@@ -80,8 +84,10 @@ seed=[
 ("training","تدريب فحص الشاحنات","Academy","دورات تدريبية للتشخيص وقراءة المخططات")
 ]
 with DB() as d:
-    if not d.scalar(select(func.count()).select_from(Product)):
-        d.add_all([Product(slug=a,title=b,brand=c,description=e) for a,b,c,e in seed])
+    if d.get(StoreState,1) is None:
+        if not d.scalar(select(func.count()).select_from(Product)):
+            d.add_all([Product(slug=a,title=b,brand=c,description=e) for a,b,c,e in seed])
+        d.add(StoreState(id=1))
     email=os.getenv("ADMIN_EMAIL","").strip().lower()
     pw=os.getenv("ADMIN_PASSWORD","")
     existing=d.scalar(select(User).where(User.email==email)) if email else None
@@ -156,6 +162,7 @@ small{color:#a7bacd}footer{text-align:center;padding:25px;margin-top:60px;backgr
 .catalog-specs{white-space:pre-wrap}
 .product-image{width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:10px}.gallery-image{width:100%;height:220px;object-fit:cover;border-radius:12px}.photo-actions{display:flex;gap:10px;flex-wrap:wrap}
 .copy-link{background:#24394e;color:#eaf3fa;border:1px solid #4b6279;font-size:.86rem;padding:7px 12px;margin-inline-start:8px;font-weight:500}
+.product-admin-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:12px}.product-admin-actions form{margin:0}.product-admin-actions .button,.product-admin-actions button{padding:8px 13px}.danger-button{background:#973b43;color:#fff}.danger-button:hover,.danger-button:focus-visible{background:#b8424b}
 .copy-link:hover{background:#314e6b}
 .share-link{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:38px;height:38px;padding:7px!important;cursor:pointer;border-radius:10px;margin-inline-start:7px}
 .share-link svg{display:block;flex:none}
@@ -299,7 +306,14 @@ def admin():
 <section><h2>العملاء المسجلون</h2><div class="grid">{% for c in customers %}<div class="card">{{c.name}} · {{c.email}}</div>{% endfor %}</div></section>
 <section><h2>دليل الورش</h2><p class="muted">أضف صور الورش وأرقام التواصل وعناوينها وحدد مواقعها على الخريطة.</p><a class="button" href="/admin/workshops">إدارة الورش ومواقعها</a></section><section><h2>الفيديوهات التعليمية</h2><p class="muted">أضف فيديوهات دروسك التعليمية من يوتيوب لتظهر للزوار.</p><a class="button" href="/admin/videos">إدارة الفيديوهات</a></section>
 <section><h2>إدارة الكتالوج</h2><p class="muted">برامج الفحص والبرمجة منفصلة عن كتالوجات PDF وقطع الغيار.</p><p><a class="button" href="/admin/catalog">فتح لوحة إدارة الكتالوج</a> <a href="/catalog">كتالوج</a> · <a href="/catalog/pdfs">كتالوجات PDF</a></p></section><section><h2>إضافة منتج أو خدمة</h2><form method="post" action="/admin/product" class="card"><input type="hidden" name="csrf" value="{{csrf}}"><label>الاسم<input name="title" required></label><label>العلامة<input name="brand" required></label><label>الوصف<textarea name="description" required></textarea></label><button>إضافة</button></form>
-{% for p in products %}<div class="card">{{p.title}} · {{'معروض' if p.visible else 'مخفي'}}<form method="post" action="/admin/product/{{p.id}}/toggle"><input type="hidden" name="csrf" value="{{csrf}}"><button>إظهار/إخفاء</button></form></div>{% endfor %}</section></div>""",views=views,uniques=uniques,orders=orders,inquiries=inquiries,customers=customers,products=products,statuses=["awaiting_contact","awaiting_payment","paid","delivered","rejected"])
+{% for p in products %}<div class="card">
+<h3>{{p.title}}</h3><p class="muted">{{p.brand}} · {{'معروض' if p.visible else 'مخفي'}}</p>
+<div class="product-admin-actions">
+<a class="button" href="/admin/product/{{p.id}}/edit">✏️ تعديل</a>
+<form method="post" action="/admin/product/{{p.id}}/toggle"><input type="hidden" name="csrf" value="{{csrf}}"><button type="submit">{{'إخفاء' if p.visible else 'إظهار'}}</button></form>
+<form method="post" action="/admin/product/{{p.id}}/delete" onsubmit="return confirm('هل تريد حذف هذا المنتج؟ المنتجات ذات الطلبات السابقة ستُخفى مع الاحتفاظ بسجلات الطلبات.')">
+<input type="hidden" name="csrf" value="{{csrf}}"><button type="submit" class="danger-button">🗑️ حذف</button></form>
+</div></div>{% endfor %}</section></div>""",views=views,uniques=uniques,orders=orders,inquiries=inquiries,customers=customers,products=products,statuses=["awaiting_contact","awaiting_payment","paid","delivered","rejected"])
 @app.post("/admin/order/<int:id>")
 @admin_only
 def update_order(id):
@@ -320,6 +334,57 @@ def toggle(id):
     p=DB().get(Product,id)
     if not p:abort(404)
     p.visible=not p.visible;DB().commit();return redirect("/admin")
+@app.route("/admin/product/<int:id>/edit",methods=["GET","POST"])
+@admin_only
+def edit_product(id):
+    d=DB()
+    p=d.get(Product,id)
+    if not p:abort(404)
+    if request.method=="POST":
+        title=field("title",150);brand=field("brand",80);description=field("description",2000)
+        if not all([title,brand,description]):abort(400)
+        p.title=title
+        p.brand=brand
+        p.description=description
+        p.visible=request.form.get("visible")=="yes"
+        d.commit()
+        flash("تم حفظ تعديلات المنتج بنجاح.")
+        return redirect("/admin")
+    return page("""<div class="container"><section class="card" style="max-width:780px;margin:35px auto">
+<h1>تعديل المنتج: {{p.title}}</h1>
+<p class="muted">يمكنك تعديل البيانات وإظهار المنتج أو إخفاءه دون تغيير رابط المنتج أو طلبات العملاء.</p>
+<form method="post"><input type="hidden" name="csrf" value="{{csrf}}">
+<label>اسم المنتج<input name="title" value="{{p.title}}" maxlength="150" required></label>
+<label>الشركة أو العلامة<input name="brand" value="{{p.brand}}" maxlength="80" required></label>
+<label>الوصف<textarea name="description" maxlength="2000" required rows="5">{{p.description}}</textarea></label>
+<label><input type="checkbox" name="visible" value="yes" {% if p.visible %}checked{% endif %}> إظهار المنتج في المتجر والكتالوج</label>
+<div class="product-admin-actions"><button type="submit">حفظ التعديلات</button><a class="button" href="/admin">العودة إلى الإدارة</a><a href="/admin/catalog">تعديل القسم والمواصفات</a></div>
+</form></section></div>""",p=p,title="تعديل منتج | SABER ACTROS DZ")
+
+@app.post("/admin/product/<int:id>/delete")
+@admin_only
+def delete_product(id):
+    d=DB()
+    p=d.get(Product,id)
+    if not p:abort(404)
+    # Preserve historical orders because orders.product_id is a required foreign key.
+    existing_order=d.scalar(select(Order.id).where(Order.product_id==id).limit(1))
+    if existing_order is not None:
+        p.visible=False
+        d.commit()
+        flash("المنتج مرتبط بطلبات عملاء؛ تم إخفاؤه من المتجر والكتالوج بدل حذفه، للحفاظ على سجل الطلبات.")
+    else:
+        # Explicitly remove child records before deleting the product in SQLite/Postgres.
+        for image in d.scalars(select(Photo).where(Photo.product_id==id)).all():
+            d.delete(image)
+        for meta in d.scalars(select(CatalogMeta).where(CatalogMeta.product_id==id)).all():
+            d.delete(meta)
+        d.flush()
+        d.delete(p)
+        d.commit()
+        flash("تم حذف المنتج وصوره المرتبطة به بنجاح.")
+    return redirect("/admin")
+
 @app.get("/privacy")
 def privacy():
     return page("""<div class="container"><section class="card"><h1>سياسة الخصوصية</h1><p>نستخدم ملف تعريف جلسة آمن لعدّ الزيارات بصورة تقريبية دون معرفة البريد الإلكتروني للزائر تلقائياً.</p><p>نجمع الاسم والبريد الإلكتروني اللذين يقدمهما العميل بموافقته عند الطلب أو التواصل، ونستخدمهما لخدمة العميل وإدارة طلباته.</p><p>يمكنك مراسلتنا لطلب تصحيح أو حذف بياناتك عبر {{contact_email}}. لا تُعرض معلوماتك لزوار الموقع. صور الأعضاء لا تظهر للعامة إلا بعد موافقتهم على النشر ومراجعة الإدارة، وتُزال منها بيانات الصور الوصفية أثناء المعالجة.</p></section></div>""")
