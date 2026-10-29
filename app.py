@@ -159,7 +159,7 @@ def page(body,title="SABER ACTROS DZ",**context):
 <nav><div class="brand-lockup"><div class="brand-title-line"><img class="algeria-flag" src="/static/flag-dz.svg" width="32" height="21" alt="علم الجزائر"><strong>SABER ACTROS DZ</strong><a class="wa-inquiry" href="https://wa.me/{{whatsapp}}" target="_blank" rel="noopener noreferrer" aria-label="واتساب للاستفسار 24/24">
 <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M26.4 15.1a10.7 10.7 0 0 1-15.9 9.3L5.1 26l1.5-5.2A10.7 10.7 0 1 1 26.4 15.1Z" fill="none" stroke="white" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10.4c-.6-.3-1.5.5-1.7 1.5-.5 2.2 1.5 5 3.9 7 2.4 2 5.1 3 6.5 2.3.8-.4 1.7-1.4 1.6-2.2 0-.5-2.4-1.5-2.8-1.3l-1.2 1.4c-1.3.6-4.6-2.3-4.8-3.8l1.1-1.3c.2-.4-.9-2.9-1.7-3.2Z" fill="white"/></svg>
 <span class="wa-inquiry-text"><span>واتساب للاستفسار</span><span class="wa-inquiry-hours">24/24</span></span></a></div><span class="brand-caption">أبو يزن · <bdi dir="ltr">00966564404359</bdi></span></div><div class="links"><a href="/">الرئيسية</a><a href="/#products">البرامج والخدمات</a><a href="/catalog">كتالوج</a><a href="/catalog/pdfs">كتالوجات PDF</a><a href="/gallery">معرض الصور</a><a href="/#contact">تواصل معنا</a>
-{% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/catalog">إدارة الكتالوج</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a><a href="/register">حساب جديد</a>{% endif %}</div></nav>
+{% if me %}<a href="/my-orders">طلباتي</a>{% if me.admin %}<a href="/admin">الإدارة</a><a href="/admin/catalog">إدارة الكتالوج</a><a href="/admin/photos">إدارة الصور</a>{% endif %}<form action="/logout" method="post" style="display:inline"><input type="hidden" name="csrf" value="{{csrf}}"><button>خروج</button></form>{% else %}<a href="/login">دخول</a>{% endif %}</div></nav>
 {% with messages=get_flashed_messages() %}{% if messages %}<div class="container"><p>{{messages|join(' • ')}}</p></div>{% endif %}{% endwith %}
 """+body+"""<footer>© SABER ACTROS DZ · <a href="/privacy">سياسة الخصوصية</a> · <a href="mailto:{{contact_email}}">{{contact_email}}</a> · <button type="button" class="copy-link" data-path="/" onclick="copyStoreLink(this)">نسخ رابط المتجر</button></footer><script>
 async function copyStoreLink(el){
@@ -205,17 +205,6 @@ def contact():
     d=DB();d.add(Inquiry(name=field("name",120),email=e,message=field("message",2000)));d.commit()
     session["sent"]=session.get("sent",0)+1
     flash("تم استلام استفسارك");return redirect("/#contact")
-@app.route("/register",methods=["GET","POST"])
-def register():
-    if request.method=="POST":
-        email=field("email",254).lower();pw=request.form.get("password","")
-        if not valid_email(email) or len(pw)<10 or not field("consent") or not field("name",120):abort(400)
-        d=DB()
-        if d.scalar(select(User).where(User.email==email)):
-            flash("البريد مستخدم سابقا");return redirect("/register")
-        u=User(name=field("name",120),email=email,password_hash=generate_password_hash(pw))
-        d.add(u);d.commit();session.clear();session["uid"]=u.id;return redirect("/my-orders")
-    return auth("إنشاء حساب",True)
 @app.route("/login",methods=["GET","POST"])
 def login():
     if request.method=="POST":
@@ -223,14 +212,13 @@ def login():
         if u and check_password_hash(u.password_hash,request.form.get("password","")):
             session.clear();session["uid"]=u.id;return redirect("/admin" if u.admin else "/my-orders")
         flash("معلومات الدخول غير صحيحة")
-    return auth("تسجيل الدخول",False)
-def auth(title,register_mode):
+    return auth("تسجيل الدخول")
+def auth(title):
     return page("""<div class="container"><section class="card" style="max-width:540px;margin:45px auto"><h2>{{heading}}</h2><form method="post">
 <input type="hidden" name="csrf" value="{{csrf}}">
-{% if registering %}<label>الاسم<input name="name" required maxlength="120"></label>{% endif %}
-<label>البريد<input name="email" type="email" required></label><label>كلمة المرور<input name="password" type="password" minlength="{{10 if registering else 1}}" required></label>
-{% if registering %}<label><input type="checkbox" name="consent" required>أوافق على <a href="/privacy">سياسة الخصوصية</a></label>{% endif %}
-<button>{{heading}}</button></form></section></div>""",heading=title,registering=register_mode)
+<label>البريد<input name="email" type="email" required></label>
+<label>كلمة المرور<input name="password" type="password" required></label>
+<button>{{heading}}</button></form></section></div>""",heading=title)
 @app.post("/logout")
 def logout():
     session.clear();return redirect("/")
@@ -296,7 +284,7 @@ def toggle(id):
     p.visible=not p.visible;DB().commit();return redirect("/admin")
 @app.get("/privacy")
 def privacy():
-    return page("""<div class="container"><section class="card"><h1>سياسة الخصوصية</h1><p>نستخدم ملف تعريف جلسة آمن لعدّ الزيارات بصورة تقريبية دون معرفة البريد الإلكتروني للزائر تلقائياً.</p><p>نجمع الاسم والبريد الإلكتروني اللذين يقدمهما العميل بموافقته عند التسجيل أو الطلب أو التواصل، ونستخدمهما لخدمة العميل وإدارة طلباته.</p><p>يمكنك مراسلتنا لطلب تصحيح أو حذف بياناتك عبر {{contact_email}}. لا تُعرض معلوماتك لزوار الموقع. صور الأعضاء لا تظهر للعامة إلا بعد موافقتهم على النشر ومراجعة الإدارة، وتُزال منها بيانات الصور الوصفية أثناء المعالجة.</p></section></div>""")
+    return page("""<div class="container"><section class="card"><h1>سياسة الخصوصية</h1><p>نستخدم ملف تعريف جلسة آمن لعدّ الزيارات بصورة تقريبية دون معرفة البريد الإلكتروني للزائر تلقائياً.</p><p>نجمع الاسم والبريد الإلكتروني اللذين يقدمهما العميل بموافقته عند الطلب أو التواصل، ونستخدمهما لخدمة العميل وإدارة طلباته.</p><p>يمكنك مراسلتنا لطلب تصحيح أو حذف بياناتك عبر {{contact_email}}. لا تُعرض معلوماتك لزوار الموقع. صور الأعضاء لا تظهر للعامة إلا بعد موافقتهم على النشر ومراجعة الإدارة، وتُزال منها بيانات الصور الوصفية أثناء المعالجة.</p></section></div>""")
 @app.get("/health")
 def health():return "ok",200
 @app.get("/robots.txt")
