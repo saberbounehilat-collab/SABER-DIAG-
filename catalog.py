@@ -106,11 +106,15 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
                 "p": product, "category": CATEGORY_LABELS.get(cat, "برامج وخدمات"),
                 "photo_id": photo_map.get(product.id)
             })
+        preview_docs = d.scalars(select(Document).where(
+            Document.visible == True
+        ).order_by(Document.id.desc()).limit(40)).all()
         return page("""<div class="container catalog-page">
 <section class="catalog-intro">
 <h1>كتالوج</h1>
 <p class="muted">برامج فحص وبرمجة الشاحنات والخدمات التقنية حسب العلامة والشركة.</p>
-<p><a href="/catalog/pdfs">الانتقال إلى كتالوجات PDF وقطع الغيار</a></p>
+<p><strong>معاينة مجانية:</strong> يستطيع كل زائر رؤية أول صورتين (أول صفحتين) من كل كتالوج PDF دون دفع أو تسجيل دخول. بقية الصفحات لا تُعرض إلا بعد التواصل وتأكيد الدفع من الإدارة.</p>
+<p><a class="button" href="/catalog/pdfs">عرض جميع كتالوجات PDF وقطع الغيار</a></p>
 <form method="get" action="/catalog" class="catalog-filters">
 <label>ابحث عن برنامج أو شركة أو خدمة
 <input type="search" name="q" value="{{q}}" maxlength="80" placeholder="مثال: MAN، IVECO، Xentry"></label>
@@ -124,6 +128,22 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 </select></label>
 <button type="submit">بحث وتصفية</button><a href="/catalog" class="catalog-reset">عرض الكل</a>
 </form></section>
+<section id="pdf-catalogs"><h2>معاينة كتالوجات PDF مجانًا <small>({{preview_docs|length}})</small></h2>
+<p class="muted">تظهر هنا أول صورتين من كل ملف فقط؛ باقي الملف محمي حتى تأكيد الدفع يدويًا.</p>
+<div class="grid">
+{% for doc in preview_docs %}
+<article class="card catalog-card">
+<small>{{doc.brand}}</small><h3>{{doc.title}}</h3><p>{{doc.description}}</p>
+<a href="/catalog/pdf/{{doc.id}}/preview" aria-label="معاينة أول صفحتين من {{doc.title}}">
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+<img src="/catalog/pdf/{{doc.id}}/preview/0" loading="lazy" alt="الصفحة الأولى من {{doc.title}}" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
+<img src="/catalog/pdf/{{doc.id}}/preview/1" loading="lazy" onerror="this.style.display='none'" alt="الصفحة الثانية من {{doc.title}}" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
+</div></a>
+<p class="muted">صورتان مجانًا · باقي الصفحات بعد الدفع</p>
+<a class="button" href="/catalog/pdf/{{doc.id}}/preview">معاينة مجانية</a>
+</article>
+{% else %}<p class="card">لا توجد كتالوجات PDF منشورة بعد. يمكن للإدارة إضافتها من لوحة إدارة الكتالوج.</p>{% endfor %}
+</div></section>
 <section><h2>البرامج والخدمات <small>({{items|length}})</small></h2>
 <div class="grid">
 {% for item in items %}
@@ -142,7 +162,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 {% else %}<p class="card">لا توجد برامج مطابقة للبحث.</p>{% endfor %}
 </div></section>
 </div>""", title="كتالوج | SABER ACTROS DZ",
-            items=filtered_products, brands=brands,
+            items=filtered_products, preview_docs=preview_docs, brands=brands,
             categories=CATEGORIES, labels=CATEGORY_LABELS, q=q,
             selected_brand=brand, selected_category=category)
 
@@ -186,8 +206,14 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 {% for doc in docs %}<article class="card catalog-card">
 <small>{{labels.get(doc.category,"كتالوج")}} · {{doc.brand}}</small>
 <h3>{{doc.title}}</h3><p>{{doc.description}}</p>
+<a href="/catalog/pdf/{{doc.id}}/preview" aria-label="معاينة مجانية للكتالوج">
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+<img src="/catalog/pdf/{{doc.id}}/preview/0" loading="lazy" alt="صورة الصفحة الأولى" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
+<img src="/catalog/pdf/{{doc.id}}/preview/1" loading="lazy" onerror="this.style.display='none'" alt="صورة الصفحة الثانية" style="width:100%;aspect-ratio:3/4;object-fit:contain;background:#0c1a2e;border-radius:9px">
+</div></a>
+<p class="muted">🔒 صفحتان مجانًا، وبقية الملف بعد التواصل وتأكيد الدفع يدويًا.</p>
 <div class="catalog-actions">
-<a class="button" href="/catalog/pdf/{{doc.id}}/preview">معاينة أول صفحتين مجانًا</a>
+<a class="button" href="/catalog/pdf/{{doc.id}}/preview">عرض أول صورتين مجانًا</a>
 <button type="button" class="copy-link share-link" data-path="/catalog/pdf/{{doc.id}}" data-title="{{doc.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
 </div></article>
 {% else %}<p class="card">لا توجد كتالوجات PDF منشورة حاليًا.</p>{% endfor %}
@@ -202,21 +228,23 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         if not p:
             abort(404)
         meta=d.scalar(select(Meta).where(Meta.product_id==p.id))
-        photo_id=d.scalar(select(Photo.id).where(
+        photo_ids=d.scalars(select(Photo.id).where(
             Photo.kind=="product",Photo.product_id==p.id,Photo.status=="approved"
-        ).order_by(Photo.id.desc()))
+        ).order_by(Photo.id.desc()).limit(2)).all()
         cat=meta.category if meta else default_category(p)
         return page("""<div class="container">
 <section class="card catalog-detail">
 <p><a href="/catalog">كتالوج</a> / {{p.title}}</p>
-{% if photo_id %}<img class="catalog-detail-image" src="/photos/file/{{photo_id}}" alt="{{p.title}}">{% endif %}
+{% if photo_ids %}<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+{% for photo_id in photo_ids %}<img class="catalog-detail-image" src="/photos/file/{{photo_id}}" alt="صورة معاينة مجانية من {{p.title}}" loading="lazy">{% endfor %}
+</div><p class="muted">معاينة أول صورتين مجانًا. للحصول على المحتوى الكامل تواصل مع الإدارة لتأكيد الدفع.</p>{% endif %}
 <small>{{category_name}} · {{p.brand}}</small><h1>{{p.title}}</h1><p>{{p.description}}</p>
 {% if specs %}<h2>المواصفات والتفاصيل</h2><p class="catalog-specs">{{specs}}</p>{% endif %}
 <p class="muted">للحصول على السعر ومعلومات الدفع، أرسل الطلب أولًا. تأكيد الدفع من المدير فقط.</p>
 <div class="catalog-actions"><a class="button" href="/order/{{p.slug}}">طلب البرنامج أو الخدمة</a>
 <button type="button" class="copy-link share-link" data-path="/catalog/product/{{p.slug}}" data-title="{{p.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button></div>
 </section></div>""",title=p.title+" | كتالوج SABER ACTROS DZ",
-           p=p,photo_id=photo_id,category_name=CATEGORY_LABELS.get(cat,cat),
+           p=p,photo_ids=photo_ids,category_name=CATEGORY_LABELS.get(cat,cat),
            specs=meta.specifications if meta else "")
 
     @app.get("/catalog/pdf/<int:doc_id>/preview")
@@ -224,15 +252,20 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         doc=DB().get(Document,doc_id)
         if not doc or not doc.visible:
             abort(404)
+        try:
+            with fitz.open(stream=bytes(doc.pdf_data), filetype="pdf") as pdf:
+                preview_count = min(2, len(pdf))
+        except (ValueError, RuntimeError, fitz.FileDataError):
+            abort(404)
         return page("""<div class="container"><section class="card catalog-detail">
 <h1>{{doc.title}}</h1><p>{{doc.description}}</p>
-<p>معاينة مجانية لأول صفحتين فقط من الكتالوج.</p>
-{% for i in range(2) %}
+<p>معاينة مجانية لأول صورتين فقط من الكتالوج دون دفع أو تسجيل دخول.</p>
+{% for i in range(preview_count) %}
 <img src="/catalog/pdf/{{doc.id}}/preview/{{i}}" alt="معاينة الصفحة {{i+1}}" style="width:100%;height:auto;margin:12px 0" loading="lazy">
 {% endfor %}
-<p>🔒 بقية صفحات الكتالوج متاحة بعد التواصل والدفع وتأكيد الإدارة.</p>
+<p>🔒 بقية الصفحات محمية، ويُسلَّم الكتالوج الكامل بعد التواصل والدفع وموافقة الإدارة يدويًا.</p>
 <a class="button" href="https://wa.me/{{whatsapp}}?text={{('أريد شراء الكتالوج '+doc.title+' رقم '+doc.id|string)|urlencode}}" target="_blank" rel="noopener">اطلب الكتالوج الكامل</a>
-</section></div>""",doc=doc)
+</section></div>""",doc=doc,preview_count=preview_count)
 
     @app.get("/catalog/pdf/<int:doc_id>/preview/<int:page_number>")
     def preview_catalog_page(doc_id,page_number):
@@ -316,7 +349,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <a href="/admin/photos">إدارة صور المنتجات</a></p>
 </div>{% endfor %}</div></section>
 <section class="card"><h2>رفع كتالوج PDF</h2>
-<p class="muted">ملفات PDF بحجم 4 ميغابايت كحد أقصى. يرى الزوار أول صفحتين فقط؛ التحميل الكامل للإدارة.</p>
+<p class="muted">ملفات PDF بحجم 4 ميغابايت كحد أقصى. تظهر أول صورتين من كل PDF على صفحة الكتالوج الرئيسية مجانًا. بقية الصفحات محمية ولا يُسلَّم الملف الكامل إلا بعد تأكيدك الدفع يدويًا.</p>
 <form method="post" action="/admin/catalog/pdf" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{csrf}}">
 <label>اسم الكتالوج<input name="title" maxlength="160" required></label>
