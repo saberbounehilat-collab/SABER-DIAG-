@@ -106,7 +106,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
             })
         return page("""<div class="container catalog-page">
 <section class="catalog-intro">
-<h1>كتالوج البرامج</h1>
+<h1>كتالوج</h1>
 <p class="muted">برامج فحص وبرمجة الشاحنات والخدمات التقنية حسب العلامة والشركة.</p>
 <p><a href="/catalog/pdfs">الانتقال إلى كتالوجات PDF وقطع الغيار</a></p>
 <form method="get" action="/catalog" class="catalog-filters">
@@ -139,7 +139,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 </div></article>
 {% else %}<p class="card">لا توجد برامج مطابقة للبحث.</p>{% endfor %}
 </div></section>
-</div>""", title="كتالوج البرامج | SABER ACTROS DZ",
+</div>""", title="كتالوج | SABER ACTROS DZ",
             items=filtered_products, brands=brands,
             categories=CATEGORIES, labels=CATEGORY_LABELS, q=q,
             selected_brand=brand, selected_category=category)
@@ -164,8 +164,8 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         return page("""<div class="container catalog-page">
 <section class="catalog-intro">
 <h1>كتالوجات PDF وقطع الغيار</h1>
-<p class="muted">الكتالوجات والمراجع الفنية المرفوعة من إدارة المتجر، مستقلة عن كتالوج البرامج.</p>
-<p><a href="/catalog">العودة إلى كتالوج البرامج</a></p>
+<p class="muted">الكتالوجات والمراجع الفنية المرفوعة من إدارة المتجر، مستقلة عن كتالوج.</p>
+<p><a href="/catalog">العودة إلى كتالوج</a></p>
 <form method="get" action="/catalog/pdfs" class="catalog-filters">
 <label>ابحث عن كتالوج أو قطعة غيار
 <input name="q" type="search" value="{{q}}" maxlength="80" placeholder="مثال: MAN، IVECO"></label>
@@ -206,7 +206,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         cat=meta.category if meta else default_category(p)
         return page("""<div class="container">
 <section class="card catalog-detail">
-<p><a href="/catalog">كتالوج البرامج</a> / {{p.title}}</p>
+<p><a href="/catalog">كتالوج</a> / {{p.title}}</p>
 {% if photo_id %}<img class="catalog-detail-image" src="/photos/file/{{photo_id}}" alt="{{p.title}}">{% endif %}
 <small>{{category_name}} · {{p.brand}}</small><h1>{{p.title}}</h1><p>{{p.description}}</p>
 {% if specs %}<h2>المواصفات والتفاصيل</h2><p class="catalog-specs">{{specs}}</p>{% endif %}
@@ -245,7 +245,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         } for p in products]
         return page("""<div class="container">
 <h1>إدارة الكتالوج</h1>
-<p><a href="/admin">لوحة الإدارة</a> · <a href="/catalog">كتالوج البرامج</a> · <a href="/catalog/pdfs">كتالوجات PDF</a></p>
+<p><a href="/admin">لوحة الإدارة</a> · <a href="/catalog">كتالوج</a> · <a href="/catalog/pdfs">كتالوجات PDF</a></p>
 <section class="card"><h2>إضافة برنامج أو خدمة إلى الكتالوج</h2>
 <p class="muted">البرامج التي تضيفها هنا تظهر أيضًا في المتجر.</p>
 <form method="post" action="/admin/catalog/new">
