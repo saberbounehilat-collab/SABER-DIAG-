@@ -70,8 +70,7 @@
     if(marker)marker.openPopup();
   };
   const card=w=>{
-    const article=element("article","","workshop-result"+(origin&&w===undefined?"":""));
-    if(origin&&w.km===Math.min(...entries().map(x=>x.km)))article.classList.add("nearest");
+    const article=element("article","","workshop-result");
     const image=document.createElement("img");
     image.className="workshop-result-image";image.alt="صورة "+w.name;
     image.loading="lazy";image.src="/workshops/"+w.id+"/photo";
