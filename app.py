@@ -23,10 +23,11 @@ Base=declarative_base()
 from photos import register_photo_model, setup_photo_routes
 from catalog import register_catalog_models, setup_catalog_routes
 from videos import register_video_model, setup_video_routes
-from workshops import setup_workshops_routes
+from workshops import register_workshop_model, setup_workshops_routes
 Photo=register_photo_model(Base)
 CatalogMeta, CatalogDocument=register_catalog_models(Base)
 TutorialVideo=register_video_model(Base)
+Workshop=register_workshop_model(Base)
 class User(Base):
     __tablename__="users"
     id=Column(Integer,primary_key=True)
@@ -221,7 +222,7 @@ def home():
     products=DB().scalars(select(Product).where(Product.visible==True)).all()
     photo_ids={p.product_id:p.id for p in DB().scalars(select(Photo).where(Photo.kind=="product",Photo.status=="approved").order_by(Photo.id.asc())).all()}
     hero_id=DB().scalar(select(Photo.id).where(Photo.kind=="hero",Photo.status=="approved").order_by(Photo.id.desc()))
-    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><div class="hero-actions"><a class="button" href="#products">الأجهزة والبرامج</a><a class="button" href="/catalog">كتالوج</a><button class="button install-app-button" type="button" onclick="installStoreApp(this)">📲 تثبيت المتجر</button><a class="button" href="/videos">🎬 فيديوهات تعليمية</a></div></div></header>
+    return page("""<header class="hero"{% if hero_id %} style="background-image:linear-gradient(180deg,rgba(3,12,25,.30),rgba(3,12,25,.76)),url('/photos/file/{{hero_id}}')"{% endif %}><div class="container"><h1>برامج فحص الشاحنات وخدمات البرمجة</h1><p>MAN · Mercedes-Benz · IVECO · Volvo · Renault · Scania</p><p class="muted">أجهزة التشخيص والتراخيص والدعم الفني بإشراف SABER ACTROS DZ</p><div class="hero-actions"><a class="button" href="#products">الأجهزة والبرامج</a><a class="button" href="/catalog">كتالوج</a><button class="button install-app-button" type="button" onclick="installStoreApp(this)">📲 تثبيت المتجر</button><a class="button" href="/videos">🎬 فيديوهات تعليمية</a><a class="button" href="/workshops">📍 أقرب ورشة</a></div></div></header>
 <div class="container"><section id="products"><h2>البرامج والخدمات</h2><div class="grid">{% for p in products %}
 <div class="card">{% if photo_ids.get(p.id) %}<a href="/order/{{p.slug}}"><img class="product-image" src="/photos/file/{{photo_ids[p.id]}}" alt="صورة {{p.title}}" loading="lazy"></a>{% endif %}<small>{{p.brand}}</small><h3>{{p.title}}</h3><p>{{p.description}}</p><a class="button" href="/order/{{p.slug}}">اطلب الآن</a><button type="button" class="copy-link share-link" data-path="/order/{{p.slug}}" data-title="{{p.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button></div>
 {% endfor %}</div></section>
@@ -293,7 +294,7 @@ def admin():
 <tr><td>{{o.reference}}</td><td>{{o.name}}</td><td>{{o.email}}</td><td>{{p.title}}</td><td>{{o.contact}} {{o.notes}}</td><td><form method="post" action="/admin/order/{{o.id}}"><input type="hidden" name="csrf" value="{{csrf}}"><select name="status">{% for s in statuses %}<option value="{{s}}" {% if o.status==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select><button>حفظ</button></form></td></tr>{% endfor %}</table></div></section>
 <section><h2>رسائل العملاء (بموافقتهم)</h2><div class="grid">{% for i in inquiries %}<div class="card"><b>{{i.name}}</b> · {{i.email}}<p>{{i.message}}</p></div>{% endfor %}</div></section>
 <section><h2>العملاء المسجلون</h2><div class="grid">{% for c in customers %}<div class="card">{{c.name}} · {{c.email}}</div>{% endfor %}</div></section>
-<section><h2>الفيديوهات التعليمية</h2><p class="muted">أضف فيديوهات دروسك التعليمية من يوتيوب لتظهر للزوار.</p><a class="button" href="/admin/videos">إدارة الفيديوهات</a></section>
+<section><h2>دليل الورش</h2><p class="muted">أضف صور الورش وأرقام التواصل وعناوينها وحدد مواقعها على الخريطة.</p><a class="button" href="/admin/workshops">إدارة الورش ومواقعها</a></section><section><h2>الفيديوهات التعليمية</h2><p class="muted">أضف فيديوهات دروسك التعليمية من يوتيوب لتظهر للزوار.</p><a class="button" href="/admin/videos">إدارة الفيديوهات</a></section>
 <section><h2>إدارة الكتالوج</h2><p class="muted">برامج الفحص والبرمجة منفصلة عن كتالوجات PDF وقطع الغيار.</p><p><a class="button" href="/admin/catalog">فتح لوحة إدارة الكتالوج</a> <a href="/catalog">كتالوج</a> · <a href="/catalog/pdfs">كتالوجات PDF</a></p></section><section><h2>إضافة منتج أو خدمة</h2><form method="post" action="/admin/product" class="card"><input type="hidden" name="csrf" value="{{csrf}}"><label>الاسم<input name="title" required></label><label>العلامة<input name="brand" required></label><label>الوصف<textarea name="description" required></textarea></label><button>إضافة</button></form>
 {% for p in products %}<div class="card">{{p.title}} · {{'معروض' if p.visible else 'مخفي'}}<form method="post" action="/admin/product/{{p.id}}/toggle"><input type="hidden" name="csrf" value="{{csrf}}"><button>إظهار/إخفاء</button></form></div>{% endfor %}</section></div>""",views=views,uniques=uniques,orders=orders,inquiries=inquiries,customers=customers,products=products,statuses=["awaiting_contact","awaiting_payment","paid","delivered","rejected"])
 @app.post("/admin/order/<int:id>")
@@ -340,6 +341,6 @@ def store_service_worker():
 def robots():return "User-agent: *\nDisallow: /admin\nDisallow: /my-orders\nDisallow: /login\n",200,{"Content-Type":"text/plain"}
 setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, User)
 setup_catalog_routes(app, CatalogMeta, CatalogDocument, DB, Product, Photo, user, page, field, admin_only)
-setup_workshops_routes(app, page)
+setup_workshops_routes(app, Workshop, DB, page, admin_only)
 setup_video_routes(app, TutorialVideo, DB, page, admin_only)
 if __name__=="__main__":app.run(port=int(os.getenv("PORT","5000")))
