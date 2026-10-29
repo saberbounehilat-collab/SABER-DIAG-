@@ -5,6 +5,8 @@ Extra specifications and PDF catalog files live in separate tables, so existing
 product/order records need no schema migration.
 """
 from datetime import datetime, timezone
+from io import BytesIO
+import fitz
 from sqlalchemy import Column, Integer, String, Text, LargeBinary, DateTime, Boolean, ForeignKey, select, func
 from flask import abort, flash, redirect, request, Response
 
@@ -185,7 +187,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <small>{{labels.get(doc.category,"كتالوج")}} · {{doc.brand}}</small>
 <h3>{{doc.title}}</h3><p>{{doc.description}}</p>
 <div class="catalog-actions">
-<a class="button" href="/catalog/pdf/{{doc.id}}">تنزيل PDF</a>
+<a class="button" href="/catalog/pdf/{{doc.id}}/preview">معاينة أول صفحتين مجانًا</a>
 <button type="button" class="copy-link share-link" data-path="/catalog/pdf/{{doc.id}}" data-title="{{doc.title}} | SABER ACTROS DZ" title="مشاركة الرابط" aria-label="مشاركة الرابط" onclick="shareStoreLink(this)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
 </div></article>
 {% else %}<p class="card">لا توجد كتالوجات PDF منشورة حاليًا.</p>{% endfor %}
@@ -217,18 +219,54 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
            p=p,photo_id=photo_id,category_name=CATEGORY_LABELS.get(cat,cat),
            specs=meta.specifications if meta else "")
 
+    @app.get("/catalog/pdf/<int:doc_id>/preview")
+    def preview_catalog_pdf(doc_id):
+        doc=DB().get(Document,doc_id)
+        if not doc or not doc.visible:
+            abort(404)
+        return page("""<div class="container"><section class="card catalog-detail">
+<h1>{{doc.title}}</h1><p>{{doc.description}}</p>
+<p>معاينة مجانية لأول صفحتين فقط من الكتالوج.</p>
+{% for i in range(2) %}
+<img src="/catalog/pdf/{{doc.id}}/preview/{{i}}" alt="معاينة الصفحة {{i+1}}" style="width:100%;height:auto;margin:12px 0" loading="lazy">
+{% endfor %}
+<p>🔒 بقية صفحات الكتالوج متاحة بعد التواصل والدفع وتأكيد الإدارة.</p>
+<a class="button" href="https://wa.me/{{whatsapp}}?text={{('أريد شراء الكتالوج '+doc.title+' رقم '+doc.id|string)|urlencode}}" target="_blank" rel="noopener">اطلب الكتالوج الكامل</a>
+</section></div>""",doc=doc)
+
+    @app.get("/catalog/pdf/<int:doc_id>/preview/<int:page_number>")
+    def preview_catalog_page(doc_id,page_number):
+        if page_number not in (0,1):
+            abort(404)
+        doc=DB().get(Document,doc_id)
+        if not doc or not doc.visible:
+            abort(404)
+        try:
+            with fitz.open(stream=bytes(doc.pdf_data),filetype="pdf") as pdf:
+                if page_number>=len(pdf):
+                    abort(404)
+                image=pdf[page_number].get_pixmap(matrix=fitz.Matrix(1.3,1.3),alpha=False)
+                from PIL import Image
+                img=Image.frombytes("RGB",[image.width,image.height],image.samples)
+                img.thumbnail((1200,1600))
+                output=BytesIO()
+                img.save(output,format="WEBP",quality=72)
+                data=output.getvalue()
+        except (ValueError,RuntimeError):
+            abort(404)
+        return Response(data,mimetype="image/webp",headers={"Cache-Control":"public, max-age=300","X-Content-Type-Options":"nosniff"})
+
     @app.get("/catalog/pdf/<int:doc_id>")
     def download_catalog_pdf(doc_id):
+        current=user()
+        if not current or not current.admin:
+            abort(403,description="الكتالوج الكامل محمي. تواصل مع الإدارة لشرائه.")
         doc=DB().get(Document,doc_id)
-        if not doc or (not doc.visible and not (user() and user().admin)):
+        if not doc:
             abort(404)
-        data=bytes(doc.pdf_data)
-        return Response(data, mimetype="application/pdf", headers={
-            "Content-Disposition": f'attachment; filename="SABER-CATALOG-{doc.id}.pdf"',
-            "X-Content-Type-Options":"nosniff",
-            "Content-Security-Policy":"default-src 'none'; sandbox",
-            "Cache-Control":"private, max-age=60"
-        })
+        return Response(bytes(doc.pdf_data),mimetype="application/pdf",headers={
+            "Content-Disposition":f'attachment; filename="SABER-CATALOG-{doc.id}.pdf"',
+            "Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"})
 
     @app.get("/admin/catalog")
     @admin_only
@@ -278,7 +316,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <a href="/admin/photos">إدارة صور المنتجات</a></p>
 </div>{% endfor %}</div></section>
 <section class="card"><h2>رفع كتالوج PDF</h2>
-<p class="muted">ملفات PDF بحجم 4 ميغابايت كحد أقصى. تظهر للزوار بعد النشر.</p>
+<p class="muted">ملفات PDF بحجم 4 ميغابايت كحد أقصى. يرى الزوار أول صفحتين فقط؛ التحميل الكامل للإدارة.</p>
 <form method="post" action="/admin/catalog/pdf" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{csrf}}">
 <label>اسم الكتالوج<input name="title" maxlength="160" required></label>
