@@ -139,6 +139,18 @@ def setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, U
             current and (current.admin or (item.user_id == current.id and item.kind == "gallery")))
         if not authorized:
             abort(404)
+        # Product/catalog images beyond the first two previews are not public,
+        # even when a visitor guesses their direct image URLs.
+        if item.kind == "product" and not (current and current.admin):
+            product = DB().get(Product, item.product_id) if item.product_id else None
+            if not product or not product.visible:
+                abort(404)
+            free_ids = DB().scalars(select(Photo.id).where(
+                Photo.kind == "product", Photo.product_id == item.product_id,
+                Photo.status == "approved"
+            ).order_by(Photo.id.desc()).limit(2)).all()
+            if item.id not in free_ids:
+                abort(404)
         data = bytes(item.image_data)
         headers = {"X-Content-Type-Options": "nosniff",
                    "Content-Security-Policy": "default-src 'none'; sandbox",
