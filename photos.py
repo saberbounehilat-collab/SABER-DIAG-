@@ -229,6 +229,35 @@ def setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, U
         flash("تم نشر صورة المنتج.")
         return redirect("/admin/photos")
 
+
+    @app.post("/admin/photos/product/<int:product_id>")
+    @admin_only
+    def product_photo_from_dashboard(product_id):
+        """Upload or replace a product photo directly from that product's admin card."""
+        d = DB()
+        p = d.get(Product, product_id)
+        if not p:
+            abort(404)
+        try:
+            image_data = transform_image(request.files.get("photo"))
+        except ValueError as error:
+            flash(str(error))
+            return redirect("/admin")
+        existing = d.scalar(select(Photo).where(
+            Photo.kind == "product",
+            Photo.status == "approved",
+            Photo.product_id == product_id).order_by(Photo.id.desc()))
+        if existing:
+            existing.image_data = image_data
+            existing.title = p.title
+            existing.content_type = "image/webp"
+        else:
+            d.add(Photo(user_id=user().id, product_id=product_id, kind="product",
+                        status="approved", title=p.title, image_data=image_data))
+        d.commit()
+        flash("تم تحديث صورة البرنامج بنجاح.")
+        return redirect("/admin")
+
     @app.post("/admin/photos/<int:photo_id>/moderate")
     @admin_only
     def photo_moderate(photo_id):
