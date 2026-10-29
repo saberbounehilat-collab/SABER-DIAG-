@@ -153,9 +153,18 @@ def setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, U
             Photo.kind == "gallery", Photo.status == "pending").order_by(Photo.id.asc()).limit(100)).all()
         published = d.scalars(select(Photo).where(
             Photo.status == "approved").order_by(Photo.id.desc()).limit(100)).all()
+        hero = d.scalar(select(Photo).where(Photo.kind == "hero", Photo.status == "approved").order_by(Photo.id.desc()))
         products = d.scalars(select(Product).order_by(Product.id)).all()
         return page("""<div class="container"><h1>إدارة الصور</h1>
 <p><a href="/admin">العودة للوحة الإدارة</a></p>
+<section class="card"><h2>خلفية الصفحة الرئيسية للمتجر</h2>
+<p>اختر صورة بانورامية لشاحنات SABER ACTROS DZ والمعدات الثقيلة. تُنشر الخلفية مباشرة بعد الرفع وتظهر لزوار الصفحة الرئيسية.</p>
+{% if hero %}<img class="gallery-image" src="/photos/file/{{hero.id}}" alt="الخلفية الحالية للمتجر" style="height:auto;aspect-ratio:21/9;object-fit:cover;max-height:420px">{% else %}<p class="muted">لم يتم تعيين خلفية بعد.</p>{% endif %}
+<form method="post" action="/admin/photos/hero" enctype="multipart/form-data">
+<input type="hidden" name="csrf" value="{{csrf}}">
+<label>اختر صورة الخلفية (PNG أو JPG أو WebP، حتى 4MB)<input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required></label>
+<button type="submit">تعيين خلفية المتجر</button>
+</form></section>
 <section class="card"><h2>أضف صورة لبرنامج أو خدمة</h2><p>تُعرض الصورة مباشرة على بطاقة المنتج في المتجر.</p>
 <form method="post" action="/admin/photos/product" enctype="multipart/form-data">
 <input type="hidden" name="csrf" value="{{csrf}}">
@@ -174,11 +183,29 @@ def setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, U
 {% else %}<p>لا توجد صور بانتظار المراجعة.</p>{% endfor %}</div></section>
 <section><h2>صور منشورة</h2><div class="grid">{% for pic in published %}
 <div class="card"><img class="gallery-image" src="/photos/file/{{pic.id}}" alt="{{pic.title}}">
-<h3>{{pic.title}}</h3><p>{{'صورة منتج' if pic.kind=='product' else 'صورة عضو'}}</p>
+<h3>{{pic.title}}</h3><p>{{'خلفية المتجر' if pic.kind=='hero' else ('صورة منتج' if pic.kind=='product' else 'صورة عضو')}}</p>
 <form method="post" action="/admin/photos/{{pic.id}}/moderate" onsubmit="return confirm('حذف الصورة المنشورة؟');">
 <input type="hidden" name="csrf" value="{{csrf}}">
 <input type="hidden" name="action" value="delete"><button>حذف الصورة</button>
-</form></div>{% endfor %}</div></section></div>""", pending=pending, published=published, products=products)
+</form></div>{% endfor %}</div></section></div>""", pending=pending, published=published, products=products, hero=hero)
+
+    @app.post("/admin/photos/hero")
+    @admin_only
+    def photo_hero_upload():
+        try:
+            image_data = transform_image(request.files.get("photo"))
+        except ValueError as e:
+            flash(str(e))
+            return redirect("/admin/photos")
+        d = DB()
+        for old in d.scalars(select(Photo).where(Photo.kind == "hero")).all():
+            d.delete(old)
+        d.add(Photo(user_id=user().id, kind="hero", status="approved",
+                    title="SABER ACTROS DZ - Truck & Heavy Equipment Banner",
+                    image_data=image_data))
+        d.commit()
+        flash("تم تعيين خلفية المتجر بنجاح.")
+        return redirect("/admin/photos")
 
     @app.post("/admin/photos/product")
     @admin_only
