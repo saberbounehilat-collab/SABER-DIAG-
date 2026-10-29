@@ -88,9 +88,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         all_products = d.scalars(select(Product).where(Product.visible == True).order_by(Product.id.desc()).limit(300)).all()
         meta_map = current_meta_map(d)
         photo_map = current_photo_map(d)
-        all_docs = d.scalars(select(Document).where(Document.visible == True).order_by(Document.id.desc()).limit(100)).all()
-        brands = sorted(set(p.brand for p in all_products if p.brand) |
-                        set(doc.brand for doc in all_docs if doc.brand), key=str.casefold)
+        brands = sorted(set(p.brand for p in all_products if p.brand), key=str.casefold)
         filtered_products = []
         for product in all_products:
             cat = category_for(product, meta_map)
@@ -106,16 +104,11 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
                 "p": product, "category": CATEGORY_LABELS.get(cat, "برامج وخدمات"),
                 "photo_id": photo_map.get(product.id)
             })
-        filtered_docs = [
-            doc for doc in all_docs
-            if (not brand or doc.brand == brand)
-            and (not category or doc.category == category)
-            and found(doc.title, doc.brand, doc.description, q=q_lower)
-        ]
         return page("""<div class="container catalog-page">
 <section class="catalog-intro">
-<h1>كتالوج SABER ACTROS DZ</h1>
-<p class="muted">استعرض برامج فحص الشاحنات والخدمات الفنية وكتالوجات قطع الغيار والمراجع المتاحة.</p>
+<h1>كتالوج البرامج</h1>
+<p class="muted">برامج فحص وبرمجة الشاحنات والخدمات التقنية حسب العلامة والشركة.</p>
+<p><a href="/catalog/pdfs">الانتقال إلى كتالوجات PDF وقطع الغيار</a></p>
 <form method="get" action="/catalog" class="catalog-filters">
 <label>ابحث عن برنامج أو شركة أو خدمة
 <input type="search" name="q" value="{{q}}" maxlength="80" placeholder="مثال: MAN، IVECO، Xentry"></label>
@@ -146,19 +139,59 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 </div></article>
 {% else %}<p class="card">لا توجد برامج مطابقة للبحث.</p>{% endfor %}
 </div></section>
-<section><h2>كتالوجات PDF والمراجع الفنية <small>({{docs|length}})</small></h2>
-<p class="muted">الملفات المنشورة من إدارة المتجر فقط. استخدم زر التنزيل للحصول على النسخة المتاحة.</p>
-<div class="grid">{% for doc in docs %}
-<article class="card">
-<small>{{labels.get(doc.category,"كتالوج")}} · {{doc.brand}}</small><h3>{{doc.title}}</h3><p>{{doc.description}}</p>
-<div class="catalog-actions"><a class="button" href="/catalog/pdf/{{doc.id}}">تنزيل PDF</a>
-<button class="copy-link" type="button" data-path="/catalog/pdf/{{doc.id}}" onclick="copyStoreLink(this)">نسخ الرابط</button></div>
-</article>
-{% else %}<p class="card">لا توجد ملفات PDF منشورة في هذا القسم حاليًا.</p>{% endfor %}</div></section>
-</div>""", title="الكتالوج | SABER ACTROS DZ",
-            items=filtered_products, docs=filtered_docs, brands=brands,
+</div>""", title="كتالوج البرامج | SABER ACTROS DZ",
+            items=filtered_products, brands=brands,
             categories=CATEGORIES, labels=CATEGORY_LABELS, q=q,
             selected_brand=brand, selected_category=category)
+
+    @app.get("/catalog/pdfs")
+    def catalog_pdfs():
+        """Separate PDF/parts catalog, preserving old download links."""
+        d=DB()
+        q=request.args.get("q","").strip()[:80]
+        brand=request.args.get("brand","").strip()[:80]
+        category=request.args.get("category","").strip()[:30]
+        if category not in CATEGORY_LABELS:
+            category=""
+        all_docs=d.scalars(select(Document).where(Document.visible==True).order_by(Document.id.desc()).limit(100)).all()
+        brands=sorted(set(x.brand for x in all_docs if x.brand),key=str.casefold)
+        result=[
+            doc for doc in all_docs
+            if (not brand or doc.brand==brand)
+            and (not category or doc.category==category)
+            and found(doc.title, doc.brand, doc.description, q=q.casefold())
+        ]
+        return page("""<div class="container catalog-page">
+<section class="catalog-intro">
+<h1>كتالوجات PDF وقطع الغيار</h1>
+<p class="muted">الكتالوجات والمراجع الفنية المرفوعة من إدارة المتجر، مستقلة عن كتالوج البرامج.</p>
+<p><a href="/catalog">العودة إلى كتالوج البرامج</a></p>
+<form method="get" action="/catalog/pdfs" class="catalog-filters">
+<label>ابحث عن كتالوج أو قطعة غيار
+<input name="q" type="search" value="{{q}}" maxlength="80" placeholder="مثال: MAN، IVECO"></label>
+<label>العلامة أو الشركة
+<select name="brand"><option value="">جميع العلامات</option>
+{% for b in brands %}<option value="{{b}}" {% if b==selected_brand %}selected{% endif %}>{{b}}</option>{% endfor %}
+</select></label>
+<label>نوع الملف
+<select name="category"><option value="">جميع الأقسام</option>
+{% for code,label in categories %}<option value="{{code}}" {% if code==selected_category %}selected{% endif %}>{{label}}</option>{% endfor %}
+</select></label>
+<button type="submit">بحث وتصفية</button><a class="catalog-reset" href="/catalog/pdfs">عرض الكل</a>
+</form></section>
+<section><h2>ملفات PDF <small>({{docs|length}})</small></h2>
+<div class="grid">
+{% for doc in docs %}<article class="card catalog-card">
+<small>{{labels.get(doc.category,"كتالوج")}} · {{doc.brand}}</small>
+<h3>{{doc.title}}</h3><p>{{doc.description}}</p>
+<div class="catalog-actions">
+<a class="button" href="/catalog/pdf/{{doc.id}}">تنزيل PDF</a>
+<button class="copy-link" type="button" data-path="/catalog/pdf/{{doc.id}}" onclick="copyStoreLink(this)">نسخ الرابط</button>
+</div></article>
+{% else %}<p class="card">لا توجد كتالوجات PDF منشورة حاليًا.</p>{% endfor %}
+</div></section></div>""",title="كتالوجات PDF وقطع الغيار | SABER ACTROS DZ",
+            docs=result,labels=CATEGORY_LABELS,categories=CATEGORIES,
+            brands=brands,q=q,selected_brand=brand,selected_category=category)
 
     @app.get("/catalog/product/<slug>")
     def catalog_product(slug):
@@ -173,7 +206,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         cat=meta.category if meta else default_category(p)
         return page("""<div class="container">
 <section class="card catalog-detail">
-<p><a href="/catalog">الكتالوج</a> / {{p.title}}</p>
+<p><a href="/catalog">كتالوج البرامج</a> / {{p.title}}</p>
 {% if photo_id %}<img class="catalog-detail-image" src="/photos/file/{{photo_id}}" alt="{{p.title}}">{% endif %}
 <small>{{category_name}} · {{p.brand}}</small><h1>{{p.title}}</h1><p>{{p.description}}</p>
 {% if specs %}<h2>المواصفات والتفاصيل</h2><p class="catalog-specs">{{specs}}</p>{% endif %}
@@ -212,7 +245,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         } for p in products]
         return page("""<div class="container">
 <h1>إدارة الكتالوج</h1>
-<p><a href="/admin">لوحة الإدارة</a> · <a href="/catalog">عرض الكتالوج للعامة</a></p>
+<p><a href="/admin">لوحة الإدارة</a> · <a href="/catalog">كتالوج البرامج</a> · <a href="/catalog/pdfs">كتالوجات PDF</a></p>
 <section class="card"><h2>إضافة برنامج أو خدمة إلى الكتالوج</h2>
 <p class="muted">البرامج التي تضيفها هنا تظهر أيضًا في المتجر.</p>
 <form method="post" action="/admin/catalog/new">
