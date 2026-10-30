@@ -20,6 +20,21 @@ CATEGORIES = (
 )
 CATEGORY_LABELS = dict(CATEGORIES)
 MAX_PDF_BYTES = 4 * 1024 * 1024
+TRUCK_SECTIONS = (
+    ("man", "MAN", "🚛", ("man", "مان")),
+    ("iveco", "IVECO", "🚚", ("iveco", "ايفيكو", "إيفيكو")),
+    ("renault", "RENAULT", "🚛", ("renault", "رونو", "رينو")),
+    ("volvo", "VOLVO", "🚚", ("volvo", "فولفو")),
+    ("scania", "SCANIA", "🚛", ("scania", "سكانيا")),
+    ("isuzu", "ISUZU", "🚚", ("isuzu", "ايسوزو", "إيسوزو")),
+    ("sinotruk", "SINOTRUK", "🚛", ("sinotruk", "sitrak", "howo", "cnhtc", "سينوتراك", "ساينو")),
+    ("shacman", "SHACMAN", "🚚", ("shacman", "shanxi", "shaanxi", "شاكمان", "شانكسي")),
+)
+
+
+def truck_brand_matches(raw_brand, section_key):
+    section = next((item for item in TRUCK_SECTIONS if item[0] == section_key), None)
+    return bool(section and any(alias in (raw_brand or "").casefold() for alias in section[3]))
 
 
 def free_preview_pages(page_count):
@@ -200,14 +215,15 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
         d=DB()
         q=request.args.get("q","").strip()[:80]
         brand=request.args.get("brand","").strip()[:80]
+        brand_key=next((item[0] for item in TRUCK_SECTIONS if brand.casefold()==item[0] or brand.casefold() in item[3]),brand.casefold())
         category=request.args.get("category","").strip()[:30]
         if category not in CATEGORY_LABELS:
             category=""
         all_docs=d.scalars(select(Document).where(Document.visible==True).order_by(Document.id.desc()).limit(100)).all()
-        brands=sorted(set(x.brand for x in all_docs if x.brand),key=str.casefold)
+        section_keys = {item[0] for item in TRUCK_SECTIONS}
         result=[
             doc for doc in all_docs
-            if (not brand or doc.brand==brand)
+            if (not brand or (brand_key in section_keys and truck_brand_matches(doc.brand, brand_key)))
             and (not category or doc.category==category)
             and found(doc.title, doc.brand, doc.description, q=q.casefold())
         ]
@@ -217,13 +233,16 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <h1>كتالوجات PDF وقطع الغيار</h1>
 <p class="muted">الكتالوجات والمراجع الفنية المرفوعة من إدارة المتجر، مستقلة عن كتالوج.</p>
 <p><a href="/catalog">العودة إلى كتالوج</a></p>
+<h2>اختر نوع الشاحنة</h2>
+<style>.truck-brand-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}.truck-brand-card{display:flex;align-items:center;gap:12px;color:#edf4ff;border-color:#42627e;min-height:88px}.truck-brand-card span{font-size:30px}.truck-brand-card:hover{border-color:#e6b44a;background:#1a3049}</style>
+<div class="grid truck-brand-grid">
+{% for key,label,icon,aliases in truck_sections %}
+<a class="card truck-brand-card" href="/catalog/pdfs?brand={{key}}"><span aria-hidden="true">{{icon}}</span><strong>كتالوجات شاحنات {{label}}</strong></a>
+{% endfor %}
+</div>
 <form method="get" action="/catalog/pdfs" class="catalog-filters">
 <label>ابحث عن كتالوج أو قطعة غيار
 <input name="q" type="search" value="{{q}}" maxlength="80" placeholder="مثال: MAN، IVECO"></label>
-<label>العلامة أو الشركة
-<select name="brand"><option value="">جميع العلامات</option>
-{% for b in brands %}<option value="{{b}}" {% if b==selected_brand %}selected{% endif %}>{{b}}</option>{% endfor %}
-</select></label>
 <label>نوع الملف
 <select name="category"><option value="">جميع الأقسام</option>
 {% for code,label in categories %}<option value="{{code}}" {% if code==selected_category %}selected{% endif %}>{{label}}</option>{% endfor %}
@@ -249,7 +268,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 {% else %}<p class="card">لا توجد كتالوجات PDF منشورة حاليًا.</p>{% endfor %}
 </div></section></div>""",title="كتالوجات PDF وقطع الغيار | SABER ACTROS DZ",
             docs=result,preview_pages_by_id=preview_pages_by_id,labels=CATEGORY_LABELS,categories=CATEGORIES,
-            brands=brands,q=q,selected_brand=brand,selected_category=category)
+            truck_sections=TRUCK_SECTIONS,q=q,selected_brand=brand_key,selected_category=category)
 
     @app.get("/catalog/product/<slug>")
     def catalog_product(slug):
