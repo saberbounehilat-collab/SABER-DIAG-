@@ -15,7 +15,13 @@ if not secret:
 app.secret_key=secret
 app.config.update(SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE="Lax",SESSION_COOKIE_SECURE=os.getenv("COOKIE_SECURE")=="1")
 app.wsgi_app=ProxyFix(app.wsgi_app,x_for=1,x_proto=1)
-url=os.getenv("DATABASE_URL","sqlite:///store.db")
+url=os.getenv("DATABASE_URL")
+if not url:
+    if os.getenv("RENDER") or os.getenv("FLASK_ENV")=="production":
+        raise RuntimeError("DATABASE_URL is required in production. Refusing to use temporary SQLite storage.")
+    url="sqlite:///store.db"
+if (os.getenv("RENDER") or os.getenv("FLASK_ENV")=="production") and not url.startswith(("postgres://","postgresql://","postgresql+psycopg://")):
+    raise RuntimeError("Production requires PostgreSQL, not ephemeral SQLite.")
 url=url.replace("postgres://","postgresql+psycopg://",1).replace("postgresql://","postgresql+psycopg://",1)
 engine=create_engine(url,pool_pre_ping=True,connect_args={"check_same_thread":False} if url.startswith("sqlite") else {})
 DB=scoped_session(sessionmaker(bind=engine))
@@ -24,6 +30,7 @@ from photos import register_photo_model, setup_photo_routes
 from catalog import register_catalog_models, setup_catalog_routes
 from videos import register_video_model, setup_video_routes
 from workshops import register_workshop_model, setup_workshops_routes
+from backup_tools import setup_backup_routes
 Photo=register_photo_model(Base)
 CatalogMeta, CatalogDocument=register_catalog_models(Base)
 TutorialVideo=register_video_model(Base)
@@ -299,7 +306,7 @@ def admin():
     inquiries=d.scalars(select(Inquiry).order_by(Inquiry.id.desc()).limit(200)).all()
     products=d.scalars(select(Product)).all()
     customers=d.scalars(select(User).where(User.admin==False).limit(200)).all()
-    return page("""<div class="container"><h1>لوحة الإدارة</h1><div class="grid"><div class="card"><h2>{{views}}</h2>مشاهدات الصفحات</div><div class="card"><h2>{{uniques}}</h2>زوار فريدون تقريبياً حسب اليوم</div><div class="card"><h2>{{orders|length}}</h2>طلبات معروضة</div></div>
+    return page("""<div class="container"><h1>لوحة الإدارة</h1><p><a class="button" href="/admin/storage">التخزين والنسخ الاحتياطي</a></p><div class="grid"><div class="card"><h2>{{views}}</h2>مشاهدات الصفحات</div><div class="card"><h2>{{uniques}}</h2>زوار فريدون تقريبياً حسب اليوم</div><div class="card"><h2>{{orders|length}}</h2>طلبات معروضة</div></div>
 <section><h2>الطلبات</h2><div class="scroll"><table><tr><th>الرقم</th><th>العميل</th><th>البريد</th><th>البرنامج</th><th>التفاصيل</th><th>الحالة</th></tr>{% for o,p in orders %}
 <tr><td>{{o.reference}}</td><td>{{o.name}}</td><td>{{o.email}}</td><td>{{p.title}}</td><td>{{o.contact}} {{o.notes}}</td><td><form method="post" action="/admin/order/{{o.id}}"><input type="hidden" name="csrf" value="{{csrf}}"><select name="status">{% for s in statuses %}<option value="{{s}}" {% if o.status==s %}selected{% endif %}>{{s}}</option>{% endfor %}</select><button>حفظ</button></form></td></tr>{% endfor %}</table></div></section>
 <section><h2>رسائل العملاء (بموافقتهم)</h2><div class="grid">{% for i in inquiries %}<div class="card"><b>{{i.name}}</b> · {{i.email}}<p>{{i.message}}</p></div>{% endfor %}</div></section>
@@ -411,4 +418,5 @@ setup_photo_routes(app, Photo, DB, user, page, field, admin_only, Product, User)
 setup_catalog_routes(app, CatalogMeta, CatalogDocument, DB, Product, Photo, user, page, field, admin_only)
 setup_workshops_routes(app, Workshop, DB, page, admin_only)
 setup_video_routes(app, TutorialVideo, DB, page, admin_only)
+setup_backup_routes(app, Base, DB, engine, admin_only, page)
 if __name__=="__main__":app.run(port=int(os.getenv("PORT","5000")))
