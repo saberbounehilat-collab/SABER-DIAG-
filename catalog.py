@@ -155,7 +155,6 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 <h1>كتالوج</h1>
 <p class="muted">برامج فحص وبرمجة الشاحنات والخدمات التقنية حسب العلامة والشركة.</p>
 <p><strong>معاينة مجانية:</strong> يستطيع كل زائر رؤية صفحتين من البداية، وصفحة من الوسط، وصفحة من النهاية من كل كتالوج PDF دون دفع أو تسجيل دخول. بقية الصفحات لا تُعرض إلا بعد التواصل وتأكيد الدفع من الإدارة.</p>
-<p><a class="button" href="/catalog/pdfs">عرض جميع كتالوجات PDF وقطع الغيار</a></p>
 <form method="get" action="/catalog" class="catalog-filters">
 <label>ابحث عن برنامج أو شركة أو خدمة
 <input type="search" name="q" value="{{q}}" maxlength="80" placeholder="مثال: MAN، IVECO، Xentry"></label>
@@ -169,6 +168,13 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
 </select></label>
 <button type="submit">بحث وتصفية</button><a href="/catalog" class="catalog-reset">عرض الكل</a>
 </form></section>
+<section><h2>كتالوجات حسب نوع الشاحنة</h2>
+<style>.truck-brand-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}.truck-brand-card{display:flex;align-items:center;gap:12px;color:#edf4ff;border-color:#42627e;min-height:88px}.truck-brand-card span{font-size:30px}.truck-brand-card:hover{border-color:#e6b44a;background:#1a3049}</style>
+<div class="grid truck-brand-grid">
+{% for key,label,icon,aliases in truck_sections %}
+<a class="card truck-brand-card" href="/catalog/pdfs?brand={{key}}"><span aria-hidden="true">{{icon}}</span><strong>كتالوجات شاحنات {{label}}</strong></a>
+{% endfor %}
+</div></section>
 <section id="pdf-catalogs"><h2>معاينة كتالوجات PDF مجانًا <small>({{preview_docs|length}})</small></h2>
 <p class="muted">معاينة مجانية لما يصل إلى 4 صفحات من كل ملف: أول صفحتين، صفحة في الوسط، والصفحة الأخيرة. الصفحات الأخرى محمية.</p>
 <div class="grid">
@@ -207,7 +213,7 @@ def setup_catalog_routes(app, Meta, Document, DB, Product, Photo, user, page, fi
             items=filtered_products, preview_docs=preview_docs,
             preview_pages_by_id=preview_pages_by_id, brands=brands,
             categories=CATEGORIES, labels=CATEGORY_LABELS, q=q,
-            selected_brand=brand, selected_category=category)
+            selected_brand=brand, selected_category=category,truck_sections=TRUCK_SECTIONS)
 
     @app.get("/catalog/pdfs")
     def catalog_pdfs():
